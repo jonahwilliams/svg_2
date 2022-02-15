@@ -1323,11 +1323,6 @@ class MoveToCommand extends PathMovement {
 
   final double dx;
   final double dy;
-
-  MoveToCommand transform(Float64List matrix4)  {
-    final Matrix4 matrix = Matrix4.fromFloat64List(matrix4);
-    final Vector4 vector = matrix.transform(Vector4(dx, dy, 0, 1));
-  }
 }
 
 
@@ -1345,6 +1340,7 @@ class DrawPath {
   Rect getBounds() => path.getBounds();
 
   transform(Float64List matrix4) {
+    PathMetricIterator
     var newPathCommands = pathCommands.map((x) => x.t)
   }
 }

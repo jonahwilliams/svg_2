@@ -14,9 +14,11 @@ void main() {
   });
 
   test('Validates version', () {
-    expect(() => decodeGraphics(object({
-      0: 23,
-    })), throwsException);
+    expect(
+        () => decodeGraphics(object({
+              0: 23,
+            })),
+        throwsException);
   });
 }
 

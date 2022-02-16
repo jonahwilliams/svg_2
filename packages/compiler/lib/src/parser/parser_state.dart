@@ -772,7 +772,7 @@ class SvgParserState {
     this.theme,
     this._key,
     this._warningsAsErrors,
-  )
+  )   
   // ignore: unnecessary_null_comparison
   : assert(events != null),
         _eventIterator = events.iterator;

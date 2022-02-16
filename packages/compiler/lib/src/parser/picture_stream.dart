@@ -49,7 +49,6 @@ class PictureInfo {
   /// [viewport.size].
   final Size size;
 
-
   /// Creates a [PictureLayer] that will suitably manage the lifecycle of the
   /// [picture].
   PictureLayer createLayer() {

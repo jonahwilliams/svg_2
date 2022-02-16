@@ -196,7 +196,7 @@ Picture decodeGraphics(ByteData byteData) {
             _as<List<Object?>>(command[_FormatKeys.drawPathObjects]);
         for (final Object? rawPathCommand in rawPathCommands) {
           final Map<Object?, Object?> pathCommand =
-              _as<Map<Object?, Object?>>(rawPathCommands);
+              _as<Map<Object?, Object?>>(rawPathCommand);
           final int type = _as<int>(pathCommand[_FormatKeys.pathCommandType]);
           final List<Object?> data =
               _as<List<Object?>>(pathCommand[_FormatKeys.controlPoints]);
@@ -242,7 +242,10 @@ Picture decodeGraphics(ByteData byteData) {
 
 // TODO: add inline hints
 T _as<T>(Object? value) {
-  assert(value is T,
-      'Parsing Error in binary format. Expected $value to be an instance of $T');
+  assert(
+    value is T,
+    'Parsing Error in binary format. '
+    'Expected $value to be an instance of $T',
+  );
   return value as T;
 }

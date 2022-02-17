@@ -31,7 +31,7 @@ abstract class Drawable {
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` specify the area to draw in.
-  void write() {}
+  void write(Set<Paint> paints) {}
 }
 
 /// A [Drawable] that can have a [DrawableStyle] applied to it.
@@ -824,7 +824,7 @@ class DrawableRoot implements DrawableParent {
   ///
   /// The `bounds` is not used.
   @override
-  void write() {
+  void write(Set<Paint> paints) {
     dynamic canvas;
     if (!hasDrawableContent) {
       return;
@@ -839,7 +839,7 @@ class DrawableRoot implements DrawableParent {
       canvas.translate(viewport.viewBoxOffset.x, viewport.viewBoxOffset.y);
     }
     for (Drawable child in children) {
-      child.write();
+      child.write(paints);
     }
 
     if (transform != null) {
@@ -944,9 +944,9 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   bool get hasDrawableContent => children != null && children!.isNotEmpty;
 
   @override
-  void write() {
-    for (final child in children??[]) {
-      child.write();
+  void write(Set<Paint> paints) {
+    for (final child in children ?? []) {
+      child.write(paints);
     }
 
     // dynamic canvas;
@@ -1165,10 +1165,24 @@ class DrawableShape implements DrawableStyleable {
   bool get hasDrawableContent => bounds.width + bounds.height > 0;
 
   @override
-  void write() {
-    style.fill?.toPaint().write(null);
-    style.stroke?.toPaint().write(null);
+  void write(Set<Paint> paints) {
+    final Paint? fillPaint = style.fill?.toPaint();
+    final Paint? strokePaint = style.stroke?.toPaint();
     path.write();
+    if (fillPaint != null) {
+      if (paints.add(fillPaint)) {
+        fillPaint.write(null);
+      }
+      print(
+          'canvas.drawPath(path${path.hashCode}, paint${fillPaint.hashCode});');
+    }
+    if (strokePaint != null) {
+      if (paints.add(strokePaint)) {
+        strokePaint.write(null);
+      }
+      print(
+          'canvas.drawPath(path${path.hashCode}, paint${strokePaint.hashCode});');
+    }
     return;
     // if (!hasDrawableContent) {
     //   return;
@@ -1256,7 +1270,6 @@ class DrawableShape implements DrawableStyleable {
   }
 }
 
-
 // abstract class PathMovement {
 //   PathMovement transform(Float64List matrix4);
 // }
@@ -1267,7 +1280,6 @@ class DrawableShape implements DrawableStyleable {
 //   final double dx;
 //   final double dy;
 // }
-
 
 // class DrawPath {
 

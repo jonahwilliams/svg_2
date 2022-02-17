@@ -1,19 +1,20 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' hide Path;
-import 'dart:ui' as ui show Path;
+import 'dart:ui' as ui hide Path, Canvas, Picture;
 
 import 'package:meta/meta.dart';
 import 'package:path_drawing/path_drawing.dart';
 import 'package:vector_math/vector_math_64.dart';
 
+import 'path.dart';
+import 'paint.dart';
 import 'parsers.dart';
 import 'render_picture.dart' as render_picture;
 
-/// Paint used in masks.
-final Paint _grayscaleDstInPaint = Paint()
-  ..blendMode = BlendMode.dstIn
-  ..colorFilter = const ColorFilter.matrix(<double>[
+/// ui.Paint used in masks.
+final ui.Paint _grayscaleDstInPaint = ui.Paint()
+  ..blendMode = ui.BlendMode.dstIn
+  ..colorFilter = const ui.ColorFilter.matrix(<double>[
     0, 0, 0, 0, 0, //
     0, 0, 0, 0, 0,
     0, 0, 0, 0, 0,
@@ -33,7 +34,7 @@ abstract class Drawable {
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` specify the area to draw in.
-  void draw(Canvas canvas, Rect bounds);
+  void write() {}
 }
 
 /// A [Drawable] that can have a [DrawableStyle] applied to it.
@@ -43,7 +44,7 @@ abstract class DrawableStyleable extends Drawable {
   DrawableStyle? get style;
 
   /// The 4x4 transform to apply to this [Drawable], if any.
-  Float64List? get transform;
+  AffineMatrix? get transform;
 
   /// Creates an instance with merged style information.
   DrawableStyleable mergeStyle(DrawableStyle newStyle);
@@ -110,7 +111,7 @@ class DrawableStyle {
   final PathFillType? pathFillType;
 
   /// The clip to apply, if any.
-  final List<DrawPath>? clipPath;
+  final List<Path>? clipPath;
 
   /// The mask to apply, if any.
   final DrawableStyleable? mask;
@@ -136,7 +137,7 @@ class DrawableStyle {
     DrawableTextStyle? textStyle,
     PathFillType? pathFillType,
     double? groupOpacity,
-    List<DrawPath>? clipPath,
+    List<Path>? clipPath,
     DrawableStyleable? mask,
     BlendMode? blendMode,
   }) {
@@ -173,10 +174,6 @@ class DrawablePaint {
     this.color,
     this.shader,
     this.blendMode,
-    this.colorFilter,
-    this.isAntiAlias,
-    this.filterQuality,
-    this.maskFilter,
     this.strokeCap,
     this.strokeJoin,
     this.strokeMiterLimit,
@@ -213,10 +210,6 @@ class DrawablePaint {
       color: a.color ?? b!.color,
       shader: a.shader ?? b!.shader,
       blendMode: a.blendMode ?? b!.blendMode,
-      colorFilter: a.colorFilter ?? b!.colorFilter,
-      isAntiAlias: a.isAntiAlias ?? b!.isAntiAlias,
-      filterQuality: a.filterQuality ?? b!.filterQuality,
-      maskFilter: a.maskFilter ?? b!.maskFilter,
       strokeCap: a.strokeCap ?? b!.strokeCap,
       strokeJoin: a.strokeJoin ?? b!.strokeJoin,
       strokeMiterLimit: a.strokeMiterLimit ?? b!.strokeMiterLimit,
@@ -243,27 +236,6 @@ class DrawablePaint {
   /// The [BlendMode] to use when stroking or filling a shape.
   final BlendMode? blendMode;
 
-  /// A color filter to apply when a shape is drawn or layer is composited.
-  final ColorFilter? colorFilter;
-
-  /// Whether to apply anti-aliasing to the lines and images drawn.
-  ///
-  /// Defaults to true.
-  final bool? isAntiAlias;
-
-  /// Controls the performance vs quality trade-off to use when applying
-  /// filters, such as [maskFilter], or when drawing images, as with
-  /// [Canvas.drawImageRect] or [Canvas.drawImageNine].
-  ///
-  /// Defaults to [FilterQuality.none].
-  final FilterQuality? filterQuality;
-
-  /// A mask filter (for example, a blur) to apply to a shape after it has been
-  /// drawn but before it has been composited into the image.
-  ///
-  /// See [MaskFilter] for details.
-  final MaskFilter? maskFilter;
-
   /// Whehter to fill or stroke when drawing this shape.
   final PaintingStyle? style;
 
@@ -279,49 +251,17 @@ class DrawablePaint {
   /// The width of strokes for this paint.
   final double? strokeWidth;
 
-  /// Creates a [Paint] object from this [DrawablePaint].
-  Paint toFlutterPaint() {
-    final Paint paint = Paint();
-
-    // Null chekcs are needed here because the setters assert.
-    if (blendMode != null) {
-      paint.blendMode = blendMode!;
-    }
-    if (color != null) {
-      paint.color = color!;
-    }
-    if (colorFilter != null) {
-      paint.colorFilter = colorFilter;
-    }
-    if (filterQuality != null) {
-      paint.filterQuality = filterQuality!;
-    }
-    if (isAntiAlias != null) {
-      paint.isAntiAlias = isAntiAlias!;
-    }
-    if (maskFilter != null) {
-      paint.maskFilter = maskFilter;
-    }
-    if (shader != null) {
-      paint.shader = shader;
-    }
-    if (strokeCap != null) {
-      paint.strokeCap = strokeCap!;
-    }
-    if (strokeJoin != null) {
-      paint.strokeJoin = strokeJoin!;
-    }
-    if (strokeMiterLimit != null) {
-      paint.strokeMiterLimit = strokeMiterLimit!;
-    }
-    if (strokeWidth != null) {
-      paint.strokeWidth = strokeWidth!;
-    }
-    if (style != null) {
-      paint.style = style!;
-    }
-
-    return paint;
+  Paint toPaint() {
+    return Paint(
+      blendMode: blendMode,
+      color: color,
+      shader: shader,
+      strokeCap: strokeCap,
+      strokeJoin: strokeJoin,
+      strokeMiterLimit: strokeMiterLimit,
+      strokeWidth: strokeWidth,
+      style: style,
+    );
   }
 
   @override
@@ -330,8 +270,7 @@ class DrawablePaint {
       return 'DrawablePaint{}';
     }
     return 'DrawablePaint{$style, color: $color, shader: $shader, blendMode: $blendMode, '
-        'colorFilter: $colorFilter, isAntiAlias: $isAntiAlias, filterQuality: $filterQuality, '
-        'maskFilter: $maskFilter, strokeCap: $strokeCap, strokeJoin: $strokeJoin, '
+        'strokeCap: $strokeCap, strokeJoin: $strokeJoin, '
         'strokeMiterLimit: $strokeMiterLimit, strokeWidth: $strokeWidth}';
   }
 }
@@ -388,22 +327,22 @@ class DrawableTextStyle {
   }
 
   /// The [TextDecoration] to draw with this text.
-  final TextDecoration? decoration;
+  final ui.TextDecoration? decoration;
 
   /// The color to use when drawing the decoration.
   final Color? decorationColor;
 
   /// The [TextDecorationStyle] of the decoration.
-  final TextDecorationStyle? decorationStyle;
+  final ui.TextDecorationStyle? decorationStyle;
 
   /// The weight of the font.
-  final FontWeight? fontWeight;
+  final ui.FontWeight? fontWeight;
 
   /// The style of the font.
-  final FontStyle? fontStyle;
+  final ui.FontStyle? fontStyle;
 
   /// The [TextBaseline] to use when drawing this text.
-  final TextBaseline? textBaseline;
+  final ui.TextBaseline? textBaseline;
 
   /// The font family to use when drawing this text.
   final String? fontFamily;
@@ -421,7 +360,7 @@ class DrawableTextStyle {
   final double? height;
 
   /// The [Locale] to use when drawing this text.
-  final Locale? locale;
+  final ui.Locale? locale;
 
   /// The background to use when drawing this text.
   final DrawablePaint? background;
@@ -433,25 +372,25 @@ class DrawableTextStyle {
   final DrawableTextAnchorPosition? anchor;
 
   /// Creates a Flutter [TextStyle], overriding the foreground if specified.
-  TextStyle toFlutterTextStyle({DrawablePaint? foregroundOverride}) {
-    return TextStyle(
-      decoration: decoration,
-      decorationColor: decorationColor,
-      decorationStyle: decorationStyle,
-      fontWeight: fontWeight,
-      fontStyle: fontStyle,
-      textBaseline: textBaseline,
-      fontFamily: fontFamily,
-      fontSize: fontSize,
-      letterSpacing: letterSpacing,
-      wordSpacing: wordSpacing,
-      height: height,
-      locale: locale,
-      background: background?.toFlutterPaint(),
-      foreground:
-          foregroundOverride?.toFlutterPaint() ?? foreground?.toFlutterPaint(),
-    );
-  }
+  // ui.TextStyle toFlutterTextStyle({DrawablePaint? foregroundOverride}) {
+  //   return ui.TextStyle(
+  //     decoration: decoration,
+  //     decorationColor: decorationColor,
+  //     decorationStyle: decorationStyle,
+  //     fontWeight: fontWeight,
+  //     fontStyle: fontStyle,
+  //     textBaseline: textBaseline,
+  //     fontFamily: fontFamily,
+  //     fontSize: fontSize,
+  //     letterSpacing: letterSpacing,
+  //     wordSpacing: wordSpacing,
+  //     height: height,
+  //     locale: locale,
+  //     background: background?.toFlutterPaint(),
+  //     foreground:
+  //         foregroundOverride?.toFlutterPaint() ?? foreground?.toFlutterPaint(),
+  //   );
+  // }
 
   @override
   String toString() =>
@@ -491,27 +430,28 @@ class DrawableText implements Drawable {
 
   /// The offset for positioning the text. The [anchor] property controls
   /// how this offset is interpreted.
-  final Offset offset;
+  final ui.Offset offset;
 
   /// The anchor for the offset, i.e. whether it is the start, middle, or end
   /// of the text.
   final DrawableTextAnchorPosition anchor;
 
   /// If specified, how to draw the interior portion of the text.
-  final Paragraph? fill;
+  final ui.Paragraph? fill;
 
   /// If specified, how to draw the outline of the text.
-  final Paragraph? stroke;
+  final ui.Paragraph? stroke;
 
   /// A transform to apply when drawing the text.
-  final Float64List? transform;
+  final AffineMatrix? transform;
 
   @override
   bool get hasDrawableContent =>
       (fill?.width ?? 0.0) + (stroke?.width ?? 0.0) > 0.0;
 
   @override
-  void draw(Canvas canvas, Rect bounds) {
+  void write() {
+    dynamic canvas;
     if (!hasDrawableContent) {
       return;
     }
@@ -532,24 +472,24 @@ class DrawableText implements Drawable {
 
   /// Determines the correct location for an [Offset] given laid-out
   /// [paragraph] and a [DrawableTextPosition].
-  static Offset resolveOffset(
-    Paragraph paragraph,
+  static ui.Offset resolveOffset(
+    ui.Paragraph paragraph,
     DrawableTextAnchorPosition anchor,
-    Offset offset,
+    ui.Offset offset,
   ) {
     switch (anchor) {
       case DrawableTextAnchorPosition.middle:
-        return Offset(
+        return ui.Offset(
           offset.dx - paragraph.longestLine / 2,
           offset.dy - paragraph.alphabeticBaseline,
         );
       case DrawableTextAnchorPosition.end:
-        return Offset(
+        return ui.Offset(
           offset.dx - paragraph.longestLine,
           offset.dy - paragraph.alphabeticBaseline,
         );
       case DrawableTextAnchorPosition.start:
-        return Offset(
+        return ui.Offset(
           offset.dx,
           offset.dy - paragraph.alphabeticBaseline,
         );
@@ -562,7 +502,7 @@ class DrawableText implements Drawable {
 /// Contains reusable drawing elements that can be referenced by a String ID.
 class DrawableDefinitionServer {
   final Map<String, DrawableGradient> _gradients = <String, DrawableGradient>{};
-  final Map<String, List<DrawPath>> _clipPaths = <String, List<DrawPath>>{};
+  final Map<String, List<Path>> _clipPaths = <String, List<Path>>{};
   final Map<String, DrawableStyleable> _drawables =
       <String, DrawableStyleable>{};
 
@@ -603,12 +543,12 @@ class DrawableDefinitionServer {
   }
 
   /// Get a [List<Path>] of clip paths by [id].
-  List<DrawPath>? getClipPath(String id) {
+  List<Path>? getClipPath(String id) {
     return _clipPaths[id];
   }
 
   /// Add a [List<Path>] of clip paths by [id].
-  void addClipPath(String id, List<DrawPath> paths) {
+  void addClipPath(String id, List<Path> paths) {
     _clipPaths[id] = paths;
   }
 }
@@ -642,16 +582,16 @@ abstract class DrawableGradient {
   /// The colors to use for the gradient.
   final List<Color>? colors;
 
-  /// The [TileMode] to use for this gradient.
+  /// The [ui.TileMode] to use for this gradient.
   final TileMode spreadMethod;
 
   /// The [GradientUnitMode] for any vectors specified by this gradient.
   final GradientUnitMode unitMode;
 
   /// The transform to apply to this gradient.
-  final Float64List? transform;
+  final AffineMatrix? transform;
 
-  /// Creates a [Shader] (i.e. a [Gradient]) from this object.
+  /// Creates a [ui.Shader] (i.e. a [ui.Gradient]) from this object.
   Shader createShader(Rect bounds);
 }
 
@@ -666,7 +606,7 @@ class DrawableLinearGradient extends DrawableGradient {
     required List<Color> colors,
     required TileMode spreadMethod,
     required GradientUnitMode unitMode,
-    Float64List? transform,
+    AffineMatrix? transform,
   }) : super(
           offsets,
           colors,
@@ -676,49 +616,45 @@ class DrawableLinearGradient extends DrawableGradient {
         );
 
   /// The starting offset of this gradient.
-  final Offset from;
+  final ui.Offset from;
 
   /// The ending offset of this gradient.
-  final Offset to;
+  final ui.Offset to;
 
   @override
   Shader createShader(Rect bounds) {
     final bool isObjectBoundingBox =
         unitMode == GradientUnitMode.objectBoundingBox;
 
-    Matrix4 m4transform = transform == null
-        ? Matrix4.identity()
-        : Matrix4.fromFloat64List(transform!);
+    AffineMatrix m4transform = transform ?? AffineMatrix.identity;
 
     if (isObjectBoundingBox) {
-      final Matrix4 scale =
-          affineMatrix(bounds.width, 0.0, 0.0, bounds.height, 0.0, 0.0);
-      final Matrix4 translate =
-          affineMatrix(1.0, 0.0, 0.0, 1.0, bounds.left, bounds.top);
-      m4transform = translate.multiplied(scale)..multiply(m4transform);
+      final AffineMatrix scale =
+          AffineMatrix(bounds.width, 0.0, 0.0, bounds.height, 0.0, 0.0);
+      final AffineMatrix translate =
+          AffineMatrix(1.0, 0.0, 0.0, 1.0, bounds.left, bounds.top);
+      m4transform = translate.multiplied(scale).multiplied(m4transform);
     }
 
-    final Vector3 v3from = m4transform.transform3(
-      Vector3(
+    final Point fromPoint = m4transform.transformPoint(
+      Point(
         from.dx,
         from.dy,
-        0.0,
       ),
     );
-    final Vector3 v3to = m4transform.transform3(
-      Vector3(
+    final Point toPoint = m4transform.transformPoint(
+      Point(
         to.dx,
         to.dy,
-        0.0,
       ),
     );
 
-    return Gradient.linear(
-      Offset(v3from.x, v3from.y),
-      Offset(v3to.x, v3to.y),
-      colors!,
-      offsets,
-      spreadMethod,
+    return LinearGradient(
+      from: fromPoint,
+      to: toPoint,
+      colors: colors!,
+      offsets: offsets,
+      tileMode: spreadMethod,
     );
   }
 }
@@ -736,7 +672,7 @@ class DrawableRadialGradient extends DrawableGradient {
     required List<Color> colors,
     required TileMode spreadMethod,
     required GradientUnitMode unitMode,
-    Float64List? transform,
+    AffineMatrix? transform,
   }) : super(
           offsets,
           colors,
@@ -746,13 +682,13 @@ class DrawableRadialGradient extends DrawableGradient {
         );
 
   /// The center of the radial gradient.
-  final Offset center;
+  final ui.Offset center;
 
   /// The radius of the radial gradient.
   final double? radius;
 
   /// The focal point, if any, for a two point conical gradient.
-  final Offset focal;
+  final ui.Offset focal;
 
   /// The radius of the focal point.
   final double focalRadius;
@@ -762,27 +698,25 @@ class DrawableRadialGradient extends DrawableGradient {
     final bool isObjectBoundingBox =
         unitMode == GradientUnitMode.objectBoundingBox;
 
-    Matrix4 m4transform = transform == null
-        ? Matrix4.identity()
-        : Matrix4.fromFloat64List(transform!);
+    AffineMatrix m4transform = transform ?? AffineMatrix.identity;
 
     if (isObjectBoundingBox) {
-      final Matrix4 scale =
-          affineMatrix(bounds.width, 0.0, 0.0, bounds.height, 0.0, 0.0);
-      final Matrix4 translate =
-          affineMatrix(1.0, 0.0, 0.0, 1.0, bounds.left, bounds.top);
-      m4transform = translate.multiplied(scale)..multiply(m4transform);
+      final AffineMatrix scale =
+          AffineMatrix(bounds.width, 0.0, 0.0, bounds.height, 0.0, 0.0);
+      final AffineMatrix translate =
+          AffineMatrix(1.0, 0.0, 0.0, 1.0, bounds.left, bounds.top);
+      m4transform = translate.multiplied(scale).multiplied(m4transform);
     }
 
-    return Gradient.radial(
-      center,
-      radius!,
-      colors!,
-      offsets,
-      spreadMethod,
-      m4transform.storage,
-      focal,
-      0.0,
+    return RadialGradient(
+      center: Point(center.dx, center.dy),
+      radius: radius!,
+      colors: colors!,
+      offsets: offsets,
+      tileMode: spreadMethod,
+      transform: m4transform,
+      focalX: focal.dx,
+      focalY: focal.dy,
     );
   }
 }
@@ -797,22 +731,22 @@ class DrawableViewport {
   const DrawableViewport(
     this.size,
     this.viewBox, {
-    this.viewBoxOffset = Offset.zero,
+    this.viewBoxOffset = ui.Offset.zero,
   });
 
   /// The offset for all drawing commands in this Drawable.
-  final Offset viewBoxOffset;
+  final ui.Offset viewBoxOffset;
 
   /// A [Rect] representing the viewBox of this DrawableViewport.
-  Rect get viewBoxRect => Offset.zero & viewBox;
+  Rect get viewBoxRect => Rect.fromLTRB(0, 0, viewBox.width, viewBox.height);
 
   /// The viewBox size for the drawable.
-  final Size viewBox;
+  final ui.Size viewBox;
 
   /// The viewport size of the drawable.
   ///
   /// This may or may not be identical to the
-  final Size size;
+  final ui.Size size;
 
   /// The width of the viewport rect.
   double get width => size.width;
@@ -845,7 +779,7 @@ class DrawableRoot implements DrawableParent {
   final String? id;
 
   @override
-  final Float64List? transform;
+  final AffineMatrix? transform;
 
   @override
   final Color? color;
@@ -866,12 +800,13 @@ class DrawableRoot implements DrawableParent {
   /// If the `viewBox` dimensions are not 1:1 with `desiredSize`, will scale to
   /// the smaller dimension and translate to center the image along the larger
   /// dimension.
-  void scaleCanvasToViewBox(Canvas canvas, Size desiredSize) {
+  void scaleCanvasToViewBox(dynamic canvas, ui.Size desiredSize) {
     final Matrix4 transform = Matrix4.identity();
     if (render_picture.scaleCanvasToViewBox(
       transform,
       desiredSize,
-      viewport.viewBoxRect,
+      ui.Rect.fromLTRB(viewport.viewBoxRect.left, viewport.viewBoxRect.top,
+          viewport.viewBoxRect.right, viewport.viewBoxRect.bottom),
       viewport.size,
     )) {
       canvas.transform(transform.storage);
@@ -879,7 +814,7 @@ class DrawableRoot implements DrawableParent {
   }
 
   /// Clips the canvas to a rect corresponding to the `viewBox`.
-  void clipCanvasToViewBox(Canvas canvas) {
+  void clipCanvasToViewBox(dynamic canvas) {
     canvas.clipRect(viewport.viewBoxRect);
   }
 
@@ -892,7 +827,8 @@ class DrawableRoot implements DrawableParent {
   ///
   /// The `bounds` is not used.
   @override
-  void draw(Canvas canvas, Rect bounds) {
+  void write() {
+    dynamic canvas;
     if (!hasDrawableContent) {
       return;
     }
@@ -902,53 +838,53 @@ class DrawableRoot implements DrawableParent {
       canvas.transform(transform!);
     }
 
-    if (viewport.viewBoxOffset != Offset.zero) {
+    if (viewport.viewBoxOffset != ui.Offset.zero) {
       canvas.translate(viewport.viewBoxOffset.dx, viewport.viewBoxOffset.dy);
     }
     for (Drawable child in children) {
-      child.draw(canvas, viewport.viewBoxRect);
+      child.write();
     }
 
     if (transform != null) {
       canvas.restore();
     }
-    if (viewport.viewBoxOffset != Offset.zero) {
+    if (viewport.viewBoxOffset != ui.Offset.zero) {
       canvas.restore();
     }
   }
 
-  /// Creates a [Picture] from this [DrawableRoot].
-  ///
-  /// Be cautious about not clipping to the ViewBox - you will be
-  /// allowing your drawing to take more memory than it otherwise would,
-  /// particularly when it is eventually rasterized.
-  Picture toPicture({
-    Size? size,
-    bool clipToViewBox = true,
-    ColorFilter? colorFilter,
-  }) {
-    if (viewport.viewBox.width == 0) {
-      throw StateError('Cannot convert to picture with $viewport');
-    }
+  // /// Creates a [Picture] from this [DrawableRoot].
+  // ///
+  // /// Be cautious about not clipping to the ViewBox - you will be
+  // /// allowing your drawing to take more memory than it otherwise would,
+  // /// particularly when it is eventually rasterized.
+  // Picture toPicture({
+  //   Size? size,
+  //   bool clipToViewBox = true,
+  //   ColorFilter? colorFilter,
+  // }) {
+  //   if (viewport.viewBox.width == 0) {
+  //     throw StateError('Cannot convert to picture with $viewport');
+  //   }
 
-    final PictureRecorder recorder = PictureRecorder();
-    final Canvas canvas = Canvas(recorder, viewport.viewBoxRect);
-    if (colorFilter != null) {
-      canvas.saveLayer(null, Paint()..colorFilter = colorFilter);
-    } else {
-      canvas.save();
-    }
-    if (size != null) {
-      scaleCanvasToViewBox(canvas, size);
-    }
-    if (clipToViewBox == true) {
-      clipCanvasToViewBox(canvas);
-    }
+  //   final PictureRecorder recorder = PictureRecorder();
+  //   final dynamic canvas = Canvas(recorder, viewport.viewBoxRect);
+  //   if (colorFilter != null) {
+  //     canvas.saveLayer(null, ui.Paint()..colorFilter = colorFilter);
+  //   } else {
+  //     canvas.save();
+  //   }
+  //   if (size != null) {
+  //     scaleCanvasToViewBox(canvas, size);
+  //   }
+  //   if (clipToViewBox == true) {
+  //     clipCanvasToViewBox(canvas);
+  //   }
 
-    draw(canvas, viewport.viewBoxRect);
-    canvas.restore();
-    return recorder.endRecording();
-  }
+  //   draw(canvas, viewport.viewBoxRect);
+  //   canvas.restore();
+  //   return recorder.endRecording();
+  // }
 
   @override
   DrawableRoot mergeStyle(DrawableStyle newStyle) {
@@ -1003,7 +939,7 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   @override
   final DrawableStyle? style;
   @override
-  final Float64List? transform;
+  final AffineMatrix? transform;
   @override
   final Color? color;
 
@@ -1011,7 +947,8 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   bool get hasDrawableContent => children != null && children!.isNotEmpty;
 
   @override
-  void draw(Canvas canvas, Rect bounds) {
+  void write() {
+    dynamic canvas;
     if (!hasDrawableContent) {
       return;
     }
@@ -1027,13 +964,13 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
 
       bool needsSaveLayer = style!.mask != null;
 
-      final Paint blendingPaint = Paint();
+      final ui.Paint blendingPaint = ui.Paint();
       if (style!.groupOpacity != null && style!.groupOpacity != 1.0) {
-        blendingPaint.color = Color.fromRGBO(0, 0, 0, style!.groupOpacity!);
+        blendingPaint.color = ui.Color.fromRGBO(0, 0, 0, style!.groupOpacity!);
         needsSaveLayer = true;
       }
       if (style!.blendMode != null) {
-        blendingPaint.blendMode = style!.blendMode!;
+        // blendingPaint.blendMode = style!.blendMode!;
         needsSaveLayer = true;
       }
       if (needsSaveLayer) {
@@ -1041,12 +978,12 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
       }
 
       for (Drawable child in children!) {
-        child.draw(canvas, bounds);
+        child.write();
       }
 
       if (style!.mask != null) {
         canvas.saveLayer(null, _grayscaleDstInPaint);
-        style!.mask!.draw(canvas, bounds);
+        style!.mask!.write();
         canvas.restore();
       }
       if (needsSaveLayer) {
@@ -1058,11 +995,11 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
     };
 
     if (style?.clipPath?.isNotEmpty == true) {
-      for (DrawPath clipPath in style!.clipPath!) {
+      for (Path clipPath in style!.clipPath!) {
         canvas.save();
-        canvas.clipPath(clipPath.path);
+        canvas.clipPath(clipPath);
         if (children!.length > 1) {
-          canvas.saveLayer(null, Paint());
+          canvas.saveLayer(null, ui.Paint());
         }
 
         innerDraw();
@@ -1123,27 +1060,28 @@ class DrawableRasterImage implements DrawableStyleable {
   final String? id;
 
   /// The [Image] to draw.
-  final Image image;
+  final ui.Image image;
 
   /// The position for the top-left corner of the image.
-  final Offset offset;
+  final ui.Offset offset;
 
   /// The size to scale the image to.
-  final Size? size;
+  final ui.Size? size;
 
   @override
-  final Float64List? transform;
+  final AffineMatrix? transform;
 
   @override
   final DrawableStyle style;
 
   @override
-  void draw(Canvas canvas, Rect bounds) {
-    final Size imageSize = Size(
+  void write() {
+    dynamic canvas;
+    final ui.Size imageSize = ui.Size(
       image.width.toDouble(),
       image.height.toDouble(),
     );
-    Size? desiredSize = imageSize;
+    ui.Size? desiredSize = imageSize;
     double scale = 1.0;
     if (size != null) {
       desiredSize = size;
@@ -1152,10 +1090,10 @@ class DrawableRasterImage implements DrawableStyleable {
         size!.height / image.height,
       );
     }
-    if (scale != 1.0 || offset != Offset.zero || transform != null) {
-      final Size halfDesiredSize = desiredSize! / 2.0;
-      final Size scaledHalfImageSize = imageSize * scale / 2.0;
-      final Offset shift = Offset(
+    if (scale != 1.0 || offset != ui.Offset.zero || transform != null) {
+      final ui.Size halfDesiredSize = desiredSize! / 2.0;
+      final ui.Size scaledHalfImageSize = imageSize * scale / 2.0;
+      final ui.Offset shift = ui.Offset(
         halfDesiredSize.width - scaledHalfImageSize.width,
         halfDesiredSize.height - scaledHalfImageSize.height,
       );
@@ -1166,8 +1104,8 @@ class DrawableRasterImage implements DrawableStyleable {
         canvas.transform(transform!);
       }
     }
-    canvas.drawImage(image, Offset.zero, Paint());
-    if (scale != 1.0 || offset != Offset.zero || transform != null) {
+    canvas.drawImage(image, ui.Offset.zero, ui.Paint());
+    if (scale != 1.0 || offset != ui.Offset.zero || transform != null) {
       canvas.restore();
     }
   }
@@ -1207,13 +1145,13 @@ class DrawableShape implements DrawableStyleable {
   final String? id;
 
   @override
-  final Float64List? transform;
+  final AffineMatrix? transform;
 
   @override
   final DrawableStyle style;
 
   /// The [Path] describing this shape.
-  final DrawPath path;
+  final Path path;
 
   /// The bounds of this shape.
   Rect get bounds => path.getBounds();
@@ -1226,70 +1164,74 @@ class DrawableShape implements DrawableStyleable {
   bool get hasDrawableContent => bounds.width + bounds.height > 0;
 
   @override
-  void draw(Canvas canvas, Rect bounds) {
-    if (!hasDrawableContent) {
-      return;
-    }
+  void write() {
+    style.fill?.toPaint().write(null);
+    style.stroke?.toPaint().write(null);
+    path.write();
+    return;
+    // if (!hasDrawableContent) {
+    //   return;
+    // }
 
-    path.fillType = style.pathFillType ?? PathFillType.nonZero;
-    // if we have multiple clips to apply, need to wrap this in a loop.
-    final Function innerDraw = () {
-      if (transform != null) {
-        canvas.save();
-        canvas.transform(transform!);
-      }
-      if (style.blendMode != null) {
-        canvas.saveLayer(null, Paint()..blendMode = style.blendMode!);
-      }
-      if (style.mask != null) {
-        canvas.saveLayer(null, Paint());
-      }
-      if (style.fill?.style != null) {
-        assert(style.fill!.style == PaintingStyle.fill);
-        canvas.drawPath(path, style.fill!.toFlutterPaint());
-      }
+    // path.fillType = style.pathFillType ?? PathFillType.nonZero;
+    // // if we have multiple clips to apply, need to wrap this in a loop.
+    // final Function innerDraw = () {
+    //   if (transform != null) {
+    //     canvas.save();
+    //     canvas.transform(transform!);
+    //   }
+    //   if (style.blendMode != null) {
+    //     canvas.saveLayer(null, ui.Paint()..blendMode = style.blendMode!);
+    //   }
+    //   if (style.mask != null) {
+    //     canvas.saveLayer(null, ui.Paint());
+    //   }
+    //   if (style.fill?.style != null) {
+    //     assert(style.fill!.style == ui.PaintingStyle.fill);
+    //     canvas.drawPath(path, style.fill!.toFlutterPaint());
+    //   }
 
-      if (style.stroke?.style != null) {
-        assert(style.stroke!.style == PaintingStyle.stroke);
-        if (style.dashArray != null &&
-            !identical(style.dashArray, DrawableStyle.emptyDashArray)) {
-          canvas.drawPath(
-              dashPath(
-                path,
-                dashArray: style.dashArray!,
-                dashOffset: style.dashOffset,
-              ),
-              style.stroke!.toFlutterPaint());
-        } else {
-          canvas.drawPath(path, style.stroke!.toFlutterPaint());
-        }
-      }
+    //   if (style.stroke?.style != null) {
+    //     assert(style.stroke!.style == ui.PaintingStyle.stroke);
+    //     if (style.dashArray != null &&
+    //         !identical(style.dashArray, DrawableStyle.emptyDashArray)) {
+    //       // canvas.drawPath(
+    //       //     dashPath(
+    //       //       path,
+    //       //       dashArray: style.dashArray!,
+    //       //       dashOffset: style.dashOffset,
+    //       //     ),
+    //       //     style.stroke!.toFlutterPaint());
+    //     } else {
+    //       canvas.drawPath(path, style.stroke!.toFlutterPaint());
+    //     }
+    //   }
 
-      if (style.mask != null) {
-        canvas.saveLayer(null, _grayscaleDstInPaint);
-        style.mask!.draw(canvas, bounds);
-        canvas.restore();
-        canvas.restore();
-      }
+    //   if (style.mask != null) {
+    //     canvas.saveLayer(null, _grayscaleDstInPaint);
+    //     style.mask!.write();
+    //     canvas.restore();
+    //     canvas.restore();
+    //   }
 
-      if (style.blendMode != null) {
-        canvas.restore();
-      }
-      if (transform != null) {
-        canvas.restore();
-      }
-    };
+    //   if (style.blendMode != null) {
+    //     canvas.restore();
+    //   }
+    //   if (transform != null) {
+    //     canvas.restore();
+    //   }
+    // };
 
-    if (style.clipPath?.isNotEmpty == true) {
-      for (Path clip in style.clipPath!) {
-        canvas.save();
-        canvas.clipPath(clip);
-        innerDraw();
-        canvas.restore();
-      }
-    } else {
-      innerDraw();
-    }
+    // if (style.clipPath?.isNotEmpty == true) {
+    //   for (Path clip in style.clipPath!) {
+    //     canvas.save();
+    //     canvas.clipPath(clip);
+    //     innerDraw();
+    //     canvas.restore();
+    //   }
+    // } else {
+    //   innerDraw();
+    // }
   }
 
   @override
@@ -1314,33 +1256,34 @@ class DrawableShape implements DrawableStyleable {
 }
 
 
-abstract class PathMovement {
-  PathMovement transform(Float64List matrix4);
-}
+// abstract class PathMovement {
+//   PathMovement transform(Float64List matrix4);
+// }
 
-class MoveToCommand extends PathMovement {
-  const MoveToCommand(this.dx, this.dy);
+// class MoveToCommand extends PathMovement {
+//   const MoveToCommand(this.dx, this.dy);
 
-  final double dx;
-  final double dy;
-}
+//   final double dx;
+//   final double dy;
+// }
 
 
-class DrawPath {
+// class DrawPath {
 
-  /// The backing path;
-  final ui.Path path = ui.Path();
-  final List<MoveToCommand> pathCommands = <MoveToCommand>[];
+//   /// The backing path;
+//   final ui.Path path = ui.Path();
+//   final List<MoveToCommand> pathCommands = <MoveToCommand>[];
 
-  void moveTo(double dx, double dy) {
-    path.moveTo(dx, dy);
-    pathCommands.add(MoveToCommand(dx, dy));
-  }
+//   void moveTo(double dx, double dy) {
+//     path.moveTo(dx, dy);
+//     pathCommands.add(MoveToCommand(dx, dy));
+//   }
 
-  Rect getBounds() => path.getBounds();
+//   Rect getBounds() => path.getBounds();
 
-  transform(Float64List matrix4) {
-    PathMetricIterator
-    var newPathCommands = pathCommands.map((x) => x.t)
-  }
-}
+//   transform(Float64List matrix4) {
+//     PathMetricIterator
+//     var newPathCommands = pathCommands.map((x) => x.t)
+//   }
+// }
+

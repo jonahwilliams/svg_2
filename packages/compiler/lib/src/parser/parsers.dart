@@ -1,10 +1,12 @@
-import 'dart:convert' hide Codec;
+// import 'dart:convert' hide Codec;
 import 'dart:math';
-import 'dart:typed_data';
-import 'dart:ui';
+// import 'dart:typed_data';
+// import 'dart:ui' hide PathFillType;
 
 import 'package:vector_math/vector_math_64.dart';
 
+import 'path.dart';
+import 'paint.dart';
 import 'numbers.dart';
 import 'vector_drawable.dart';
 
@@ -27,7 +29,8 @@ const String _transformCommandAtom = ' *,?([^(]+)\\(([^)]*)\\)';
 final RegExp _transformValidator = RegExp('^($_transformCommandAtom)*\$');
 final RegExp _transformCommand = RegExp(_transformCommandAtom);
 
-typedef _MatrixParser = Matrix4 Function(String? paramsStr, Matrix4 current);
+typedef _MatrixParser = AffineMatrix Function(
+    String? paramsStr, AffineMatrix current);
 
 const Map<String, _MatrixParser> _matrixParsers = <String, _MatrixParser>{
   'matrix': _parseSvgMatrix,
@@ -38,13 +41,10 @@ const Map<String, _MatrixParser> _matrixParsers = <String, _MatrixParser>{
   'skewY': _parseSvgSkewY,
 };
 
-/// Parses a SVG transform attribute into a [Matrix4].
-///
-/// Based on work in the "vi-tool" by @amirh, but extended to support additional
-/// transforms and use a Matrix4 rather than Matrix3 for the affine matrices.
+/// Parses a SVG transform attribute into a [AffineMatrix].
 ///
 /// Also adds [x] and [y] to append as a final translation, e.g. for `<use>`.
-Matrix4? parseTransform(String? transform) {
+AffineMatrix? parseTransform(String? transform) {
   if (transform == null || transform == '') {
     return null;
   }
@@ -53,7 +53,7 @@ Matrix4? parseTransform(String? transform) {
     throw StateError('illegal or unsupported transform: $transform');
   final Iterable<Match> matches =
       _transformCommand.allMatches(transform).toList().reversed;
-  Matrix4 result = Matrix4.identity();
+  AffineMatrix result = AffineMatrix.identity;
   for (Match m in matches) {
     final String command = m.group(1)!.trim();
     final String? params = m.group(2);
@@ -70,7 +70,7 @@ Matrix4? parseTransform(String? transform) {
 
 final RegExp _valueSeparator = RegExp('( *, *| +)');
 
-Matrix4 _parseSvgMatrix(String? paramsStr, Matrix4 current) {
+AffineMatrix _parseSvgMatrix(String? paramsStr, AffineMatrix current) {
   final List<String> params = paramsStr!.trim().split(_valueSeparator);
   assert(params.isNotEmpty);
   assert(params.length == 6);
@@ -81,62 +81,55 @@ Matrix4 _parseSvgMatrix(String? paramsStr, Matrix4 current) {
   final double e = parseDouble(params[4])!;
   final double f = parseDouble(params[5])!;
 
-  return affineMatrix(a, b, c, d, e, f).multiplied(current);
+  return AffineMatrix(a, b, c, d, e, f).multiplied(current);
 }
 
-Matrix4 _parseSvgSkewX(String? paramsStr, Matrix4 current) {
+AffineMatrix _parseSvgSkewX(String? paramsStr, AffineMatrix current) {
   final double x = parseDouble(paramsStr)!;
-  return affineMatrix(1.0, 0.0, tan(x), 1.0, 0.0, 0.0).multiplied(current);
+  return AffineMatrix(1.0, 0.0, tan(x), 1.0, 0.0, 0.0).multiplied(current);
 }
 
-Matrix4 _parseSvgSkewY(String? paramsStr, Matrix4 current) {
+AffineMatrix _parseSvgSkewY(String? paramsStr, AffineMatrix current) {
   final double y = parseDouble(paramsStr)!;
-  return affineMatrix(1.0, tan(y), 0.0, 1.0, 0.0, 0.0).multiplied(current);
+  return AffineMatrix(1.0, tan(y), 0.0, 1.0, 0.0, 0.0).multiplied(current);
 }
 
-Matrix4 _parseSvgTranslate(String? paramsStr, Matrix4 current) {
+AffineMatrix _parseSvgTranslate(String? paramsStr, AffineMatrix current) {
   final List<String> params = paramsStr!.split(_valueSeparator);
   assert(params.isNotEmpty);
   assert(params.length <= 2);
   final double x = parseDouble(params[0])!;
   final double y = params.length < 2 ? 0.0 : parseDouble(params[1])!;
-  return affineMatrix(1.0, 0.0, 0.0, 1.0, x, y).multiplied(current);
+  return AffineMatrix(1.0, 0.0, 0.0, 1.0, x, y).multiplied(current);
 }
 
-Matrix4 _parseSvgScale(String? paramsStr, Matrix4 current) {
+AffineMatrix _parseSvgScale(String? paramsStr, AffineMatrix current) {
   final List<String> params = paramsStr!.split(_valueSeparator);
   assert(params.isNotEmpty);
   assert(params.length <= 2);
   final double x = parseDouble(params[0])!;
   final double y = params.length < 2 ? x : parseDouble(params[1])!;
-  return affineMatrix(x, 0.0, 0.0, y, 0.0, 0.0).multiplied(current);
+  return AffineMatrix(x, 0.0, 0.0, y, 0.0, 0.0).multiplied(current);
 }
 
-Matrix4 _parseSvgRotate(String? paramsStr, Matrix4 current) {
+AffineMatrix _parseSvgRotate(String? paramsStr, AffineMatrix current) {
   final List<String> params = paramsStr!.split(_valueSeparator);
   assert(params.length <= 3);
   final double a = radians(parseDouble(params[0])!);
 
-  final Matrix4 rotate =
-      affineMatrix(cos(a), sin(a), -sin(a), cos(a), 0.0, 0.0);
+  final AffineMatrix rotate =
+      AffineMatrix(cos(a), sin(a), -sin(a), cos(a), 0.0, 0.0);
 
   if (params.length > 1) {
     final double x = parseDouble(params[1])!;
     final double y = params.length == 3 ? parseDouble(params[2])! : x;
-    return affineMatrix(1.0, 0.0, 0.0, 1.0, x, y)
+    return AffineMatrix(1.0, 0.0, 0.0, 1.0, x, y)
         .multiplied(current)
         .multiplied(rotate)
-        .multiplied(affineMatrix(1.0, 0.0, 0.0, 1.0, -x, -y));
+        .multiplied(AffineMatrix(1.0, 0.0, 0.0, 1.0, -x, -y));
   } else {
     return rotate.multiplied(current);
   }
-}
-
-/// Creates a [Matrix4] affine matrix.
-Matrix4 affineMatrix(
-    double a, double b, double c, double d, double e, double f) {
-  return Matrix4(
-      a, b, 0.0, 0.0, c, d, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, e, f, 0.0, 1.0);
 }
 
 /// Parses a `fill-rule` attribute.
@@ -148,57 +141,57 @@ PathFillType? parseRawFillRule(String? rawFillRule) {
   return rawFillRule != 'evenodd' ? PathFillType.nonZero : PathFillType.evenOdd;
 }
 
-final RegExp _whitespacePattern = RegExp(r'\s');
+// final RegExp _whitespacePattern = RegExp(r'\s');
 
-/// Resolves an image reference, potentially downloading it via HTTP.
-Future<Image> resolveImage(String href) async {
-  assert(href != '');
+// /// Resolves an image reference, potentially downloading it via HTTP.
+// Future<Image> resolveImage(String href) async {
+//   assert(href != '');
 
-  final Future<Image> Function(Uint8List) decodeImage =
-      (Uint8List bytes) async {
-    final Codec codec = await instantiateImageCodec(bytes);
-    final FrameInfo frame = await codec.getNextFrame();
-    return frame.image;
-  };
+//   final Future<Image> Function(Uint8List) decodeImage =
+//       (Uint8List bytes) async {
+//     final Codec codec = await instantiateImageCodec(bytes);
+//     final FrameInfo frame = await codec.getNextFrame();
+//     return frame.image;
+//   };
 
-  if (href.startsWith('http')) {
-    throw UnsupportedError('Cannot request http images');
-  }
+//   if (href.startsWith('http')) {
+//     throw UnsupportedError('Cannot request http images');
+//   }
 
-  if (href.startsWith('data:')) {
-    final int commaLocation = href.indexOf(',') + 1;
-    final Uint8List bytes = base64.decode(
-        href.substring(commaLocation).replaceAll(_whitespacePattern, ''));
-    return decodeImage(bytes);
-  }
+//   if (href.startsWith('data:')) {
+//     final int commaLocation = href.indexOf(',') + 1;
+//     final Uint8List bytes = base64.decode(
+//         href.substring(commaLocation).replaceAll(_whitespacePattern, ''));
+//     return decodeImage(bytes);
+//   }
 
-  throw UnsupportedError('Could not resolve image href: $href');
-}
+//   throw UnsupportedError('Could not resolve image href: $href');
+// }
 
-const ParagraphConstraints _infiniteParagraphConstraints = ParagraphConstraints(
-  width: double.infinity,
-);
+// const ParagraphConstraints _infiniteParagraphConstraints = ParagraphConstraints(
+//   width: double.infinity,
+// );
 
 /// A [DrawablePaint] with a transparent stroke.
 const DrawablePaint transparentStroke =
     DrawablePaint(PaintingStyle.stroke, color: Color(0x0));
 
-/// Creates a [Paragraph] object using the specified [text], [style], and
-/// [foregroundOverride].
-Paragraph createParagraph(
-  String text,
-  DrawableStyle style,
-  DrawablePaint? foregroundOverride,
-) {
-  final ParagraphBuilder builder = ParagraphBuilder(ParagraphStyle())
-    ..pushStyle(
-      style.textStyle!.toFlutterTextStyle(
-        foregroundOverride: foregroundOverride,
-      ),
-    )
-    ..addText(text);
-  return builder.build()..layout(_infiniteParagraphConstraints);
-}
+// /// Creates a [Paragraph] object using the specified [text], [style], and
+// /// [foregroundOverride].
+// Paragraph createParagraph(
+//   String text,
+//   DrawableStyle style,
+//   DrawablePaint? foregroundOverride,
+// ) {
+//   final ParagraphBuilder builder = ParagraphBuilder(ParagraphStyle())
+//     ..pushStyle(
+//       style.textStyle!.toFlutterTextStyle(
+//         foregroundOverride: foregroundOverride,
+//       ),
+//     )
+//     ..addText(text);
+//   return builder.build()..layout(_infiniteParagraphConstraints);
+// }
 
 /// Parses strings in the form of '1.0' or '100%'.
 double parseDecimalOrPercentage(String val, {double multiplier = 1.0}) {

@@ -6,6 +6,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  path_drawing:
+  path_parsing:
   xml:
   ffi:

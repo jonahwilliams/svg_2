@@ -1,10 +1,10 @@
 import 'dart:collection';
-import 'dart:ui'
-    hide Path, BlendMode, PaintingStyle, FilterQuality, StrokeCap, StrokeJoin;
+// import 'dart:ui'
+// hide Path, BlendMode, PaintingStyle, FilterQuality, StrokeCap, StrokeJoin;
 
 // import 'package:flutter/foundation.dart';
 // import 'package:path_drawing/path_drawing.dart';
-import 'package:path_drawing/path_drawing.dart' hide parseSvgPathData;
+// import 'package:path_drawing/path_drawing.dart' hide parseSvgPathData;
 // import 'package:vector_math/vector_math_64.dart';
 import 'package:xml/xml_events.dart' hide parseEvents;
 
@@ -49,23 +49,23 @@ const Map<String, _PathFunc> _svgPathFuncs = <String, _PathFunc>{
   'line': _Paths.line,
 };
 
-Offset _parseCurrentOffset(SvgParserState parserState, Offset? lastOffset) {
+Point _parseCurrentOffset(SvgParserState parserState, Point? lastOffset) {
   final String? x = parserState.attribute('x', def: null);
   final String? y = parserState.attribute('y', def: null);
 
-  return Offset(
+  return Point(
     x != null
         ? parserState.parseDoubleWithUnits(x)!
         : parserState.parseDoubleWithUnits(
               parserState.attribute('dx', def: '0'),
             )! +
-            (lastOffset?.dx ?? 0),
+            (lastOffset?.x ?? 0),
     y != null
         ? parserState.parseDoubleWithUnits(y)!
         : parserState.parseDoubleWithUnits(
               parserState.attribute('dy', def: '0'),
             )! +
-            (lastOffset?.dy ?? 0),
+            (lastOffset?.y ?? 0),
   );
 }
 
@@ -77,7 +77,7 @@ class _TextInfo {
   );
 
   final DrawableStyle style;
-  final Offset offset;
+  final Point offset;
   final AffineMatrix? transform;
 
   @override
@@ -336,9 +336,9 @@ class _Elements {
     parserState._definitions.addGradient(
       id,
       DrawableRadialGradient(
-        center: Offset(cx, cy),
+        center: Point(cx, cy),
         radius: r,
-        focal: (fx != cx || fy != cy) ? Offset(fx, fy) : Offset(cx, cy),
+        focal: (fx != cx || fy != cy) ? Point(fx, fy) : Point(cx, cy),
         focalRadius: 0.0,
         colors: colors,
         offsets: offsets,
@@ -389,18 +389,18 @@ class _Elements {
       parseStops(parserState, colors, offsets);
     }
 
-    Offset fromOffset, toOffset;
+    Point fromPoint, toPoint;
     if (isObjectBoundingBox) {
-      fromOffset = Offset(
+      fromPoint = Point(
         parseDecimalOrPercentage(x1),
         parseDecimalOrPercentage(y1),
       );
-      toOffset = Offset(
+      toPoint = Point(
         parseDecimalOrPercentage(x2),
         parseDecimalOrPercentage(y2),
       );
     } else {
-      fromOffset = Offset(
+      fromPoint = Point(
         isPercentage(x1)
             ? parsePercentage(x1) * parserState.rootBounds.width +
                 parserState.rootBounds.left
@@ -411,7 +411,7 @@ class _Elements {
             : parserState.parseDoubleWithUnits(y1)!,
       );
 
-      toOffset = Offset(
+      toPoint = Point(
         isPercentage(x2)
             ? parsePercentage(x2) * parserState.rootBounds.width +
                 parserState.rootBounds.left
@@ -426,8 +426,8 @@ class _Elements {
     parserState._definitions.addGradient(
       id,
       DrawableLinearGradient(
-        from: fromOffset,
-        to: toOffset,
+        from: fromPoint,
+        to: toPoint,
         colors: colors,
         offsets: offsets,
         spreadMethod: spreadMethod,
@@ -515,7 +515,7 @@ class _Elements {
     // if (href == null) {
     //   return;
     // }
-    // final Offset offset = Offset(
+    // final Point offset = Point(
     //   parserState.parseDoubleWithUnits(
     //     parserState.attribute('x', def: '0'),
     //   )!,
@@ -553,105 +553,106 @@ class _Elements {
     bool warningsAsErrors,
   ) async {
     throw 'unsupported';
-    assert(parserState != null); // ignore: unnecessary_null_comparison
-    assert(parserState.currentGroup != null);
-    if (parserState._currentStartElement!.isSelfClosing) {
-      return;
-    }
+    // assert(parserState != null); // ignore: unnecessary_null_comparison
+    // assert(parserState.currentGroup != null);
+    // if (parserState._currentStartElement!.isSelfClosing) {
+    //   return;
+    // }
 
-    // <text>, <tspan> -> Collect styles
-    // <tref> TBD - looks like Inkscape supports it, but no browser does.
-    // XmlNodeType.TEXT/CDATA -> DrawableText
-    // Track the style(s) and offset(s) for <text> and <tspan> elements
-    final Queue<_TextInfo> textInfos = ListQueue<_TextInfo>();
-    double lastTextWidth = 0;
+    // // <text>, <tspan> -> Collect styles
+    // // <tref> TBD - looks like Inkscape supports it, but no browser does.
+    // // XmlNodeType.TEXT/CDATA -> DrawableText
+    // // Track the style(s) and offset(s) for <text> and <tspan> elements
+    // final Queue<_TextInfo> textInfos = ListQueue<_TextInfo>();
+    // double lastTextWidth = 0;
 
-    void _processText(String value) {
-      if (value.isEmpty) {
-        return;
-      }
-      assert(textInfos.isNotEmpty);
-      final _TextInfo lastTextInfo = textInfos.last;
-      // final Paragraph fill = createParagraph(
-      //   value,
-      //   lastTextInfo.style,
-      //   lastTextInfo.style.fill,
-      // );
-      // final Paragraph stroke = createParagraph(
-      //   value,
-      //   lastTextInfo.style,
-      //   DrawablePaint.isEmpty(lastTextInfo.style.stroke)
-      //       ? transparentStroke
-      //       : lastTextInfo.style.stroke,
-      // );
-      // parserState.currentGroup!.children!.add(
-      //   DrawableText(
-      //     parserState.attribute('id', def: ''),
-      //     fill,
-      //     stroke,
-      //     lastTextInfo.offset,
-      //     lastTextInfo.style.textStyle!.anchor ??
-      //         DrawableTextAnchorPosition.start,
-      //     transform: lastTextInfo.transform?.storage,
-      //   ),
-      // );
-      // lastTextWidth = fill.maxIntrinsicWidth;
-    }
+    // void _processText(String value) {
+    //   if (value.isEmpty) {
+    //     return;
+    //   }
+    //   assert(textInfos.isNotEmpty);
+    //   final _TextInfo lastTextInfo = textInfos.last;
+    //   // final Paragraph fill = createParagraph(
+    //   //   value,
+    //   //   lastTextInfo.style,
+    //   //   lastTextInfo.style.fill,
+    //   // );
+    //   // final Paragraph stroke = createParagraph(
+    //   //   value,
+    //   //   lastTextInfo.style,
+    //   //   DrawablePaint.isEmpty(lastTextInfo.style.stroke)
+    //   //       ? transparentStroke
+    //   //       : lastTextInfo.style.stroke,
+    //   // );
+    //   // parserState.currentGroup!.children!.add(
+    //   //   DrawableText(
+    //   //     parserState.attribute('id', def: ''),
+    //   //     fill,
+    //   //     stroke,
+    //   //     lastTextInfo.offset,
+    //   //     lastTextInfo.style.textStyle!.anchor ??
+    //   //         DrawableTextAnchorPosition.start,
+    //   //     transform: lastTextInfo.transform?.storage,
+    //   //   ),
+    //   // );
+    //   // lastTextWidth = fill.maxIntrinsicWidth;
+    // }
 
-    void _processStartElement(XmlStartElementEvent event) {
-      _TextInfo? lastTextInfo;
-      if (textInfos.isNotEmpty) {
-        lastTextInfo = textInfos.last;
-      }
-      final Offset currentOffset = _parseCurrentOffset(
-        parserState,
-        lastTextInfo?.offset.translate(lastTextWidth, 0),
-      );
-      AffineMatrix? transform = parseTransform(parserState.attribute('transform'));
-      if (lastTextInfo?.transform != null) {
-        if (transform == null) {
-          transform = lastTextInfo!.transform;
-        } else {
-          transform = lastTextInfo!.transform!.multiplied(transform);
-        }
-      }
+    // void _processStartElement(XmlStartElementEvent event) {
+    //   _TextInfo? lastTextInfo;
+    //   if (textInfos.isNotEmpty) {
+    //     lastTextInfo = textInfos.last;
+    //   }
+    //   final Point currentPoint = _parseCurrentPoint(
+    //     parserState,
+    //     lastTextInfo?.offset.translate(lastTextWidth, 0),
+    //   );
+    //   AffineMatrix? transform =
+    //       parseTransform(parserState.attribute('transform'));
+    //   if (lastTextInfo?.transform != null) {
+    //     if (transform == null) {
+    //       transform = lastTextInfo!.transform;
+    //     } else {
+    //       transform = lastTextInfo!.transform!.multiplied(transform);
+    //     }
+    //   }
 
-      final DrawableStyle? parentStyle =
-          lastTextInfo?.style ?? parserState.currentGroup!.style;
+    //   final DrawableStyle? parentStyle =
+    //       lastTextInfo?.style ?? parserState.currentGroup!.style;
 
-      textInfos.add(_TextInfo(
-        parserState.parseStyle(
-          parserState.rootBounds,
-          parentStyle,
-        ),
-        currentOffset,
-        transform,
-      ));
-      if (event.isSelfClosing) {
-        textInfos.removeLast();
-      }
-    }
+    //   textInfos.add(_TextInfo(
+    //     parserState.parseStyle(
+    //       parserState.rootBounds,
+    //       parentStyle,
+    //     ),
+    //     currentPoint,
+    //     transform,
+    //   ));
+    //   if (event.isSelfClosing) {
+    //     textInfos.removeLast();
+    //   }
+    // }
 
-    _processStartElement(parserState._currentStartElement!);
+    // _processStartElement(parserState._currentStartElement!);
 
-    for (XmlEvent event in parserState._readSubtree()) {
-      if (event is XmlCDATAEvent) {
-        _processText(event.text.trim());
-      } else if (event is XmlTextEvent) {
-        final String? space =
-            getAttribute(parserState.attributes, 'space', def: null);
-        if (space != 'preserve') {
-          _processText(event.text.trim());
-        } else {
-          _processText(event.text.replaceAll(_trimPattern, ''));
-        }
-      }
-      if (event is XmlStartElementEvent) {
-        _processStartElement(event);
-      } else if (event is XmlEndElementEvent) {
-        textInfos.removeLast();
-      }
-    }
+    // for (XmlEvent event in parserState._readSubtree()) {
+    //   if (event is XmlCDATAEvent) {
+    //     _processText(event.text.trim());
+    //   } else if (event is XmlTextEvent) {
+    //     final String? space =
+    //         getAttribute(parserState.attributes, 'space', def: null);
+    //     if (space != 'preserve') {
+    //       _processText(event.text.trim());
+    //     } else {
+    //       _processText(event.text.replaceAll(_trimPattern, ''));
+    //     }
+    //   }
+    //   if (event is XmlStartElementEvent) {
+    //     _processStartElement(event);
+    //   } else if (event is XmlEndElementEvent) {
+    //     textInfos.removeLast();
+    //   }
+    // }
   }
 }
 
@@ -1156,8 +1157,8 @@ class SvgParserState {
 
     if (viewBox == '') {
       return DrawableViewport(
-        Size(width, height),
-        Size(width, height),
+        Point(width, height),
+        Point(width, height),
       );
     }
 
@@ -1167,12 +1168,12 @@ class SvgParserState {
     }
 
     return DrawableViewport(
-      Size(width, height),
-      Size(
+      Point(width, height),
+      Point(
         parseDouble(parts[2])!,
         parseDouble(parts[3])!,
       ),
-      viewBoxOffset: Offset(
+      viewBoxOffset: Point(
         -parseDouble(parts[0])!,
         -parseDouble(parts[1])!,
       ),
@@ -1185,46 +1186,46 @@ class SvgParserState {
   /// An empty IRI.
   static const String emptyUrlIri = DrawableDefinitionServer.emptyUrlIri;
 
-  /// Parses an @stroke-dasharray attribute into a [CircularIntervalList].
-  ///
-  /// Does not currently support percentages.
-  CircularIntervalList<double>? parseDashArray() {
-    final String? rawDashArray = getAttribute(attributes, 'stroke-dasharray');
-    if (rawDashArray == '') {
-      return null;
-    } else if (rawDashArray == 'none') {
-      return DrawableStyle.emptyDashArray;
-    }
+  // /// Parses an @stroke-dasharray attribute into a [CircularIntervalList].
+  // ///
+  // /// Does not currently support percentages.
+  // CircularIntervalList<double>? parseDashArray() {
+  //   final String? rawDashArray = getAttribute(attributes, 'stroke-dasharray');
+  //   if (rawDashArray == '') {
+  //     return null;
+  //   } else if (rawDashArray == 'none') {
+  //     return DrawableStyle.emptyDashArray;
+  //   }
 
-    final List<String> parts = rawDashArray!.split(RegExp(r'[ ,]+'));
-    final List<double> doubles = <double>[];
-    bool atLeastOneNonZeroDash = false;
-    for (final String part in parts) {
-      final double dashOffset = parseDoubleWithUnits(part)!;
-      if (dashOffset != 0) {
-        atLeastOneNonZeroDash = true;
-      }
-      doubles.add(dashOffset);
-    }
-    if (doubles.isEmpty || !atLeastOneNonZeroDash) {
-      return null;
-    }
-    return CircularIntervalList<double>(doubles);
-  }
+  //   final List<String> parts = rawDashArray!.split(RegExp(r'[ ,]+'));
+  //   final List<double> doubles = <double>[];
+  //   bool atLeastOneNonZeroDash = false;
+  //   for (final String part in parts) {
+  //     final double dashPoint = parseDoubleWithUnits(part)!;
+  //     if (dashPoint != 0) {
+  //       atLeastOneNonZeroDash = true;
+  //     }
+  //     doubles.add(dashPoint);
+  //   }
+  //   if (doubles.isEmpty || !atLeastOneNonZeroDash) {
+  //     return null;
+  //   }
+  //   return CircularIntervalList<double>(doubles);
+  // }
 
-  /// Parses a @stroke-dashoffset into a [DashOffset].
-  DashOffset? parseDashOffset() {
-    final String? rawDashOffset = getAttribute(attributes, 'stroke-dashoffset');
-    if (rawDashOffset == '') {
-      return null;
-    }
+  // /// Parses a @stroke-dashoffset into a [DashOffset].
+  // DashOffset? parseDashOffset() {
+  //   final String? rawDashOffset = getAttribute(attributes, 'stroke-dashoffset');
+  //   if (rawDashOffset == '') {
+  //     return null;
+  //   }
 
-    if (rawDashOffset!.endsWith('%')) {
-      return DashOffset.percentage(parsePercentage(rawDashOffset));
-    } else {
-      return DashOffset.absolute(parseDoubleWithUnits(rawDashOffset)!);
-    }
-  }
+  //   if (rawDashOffset!.endsWith('%')) {
+  //     return DashOffset.percentage(parsePercentage(rawDashOffset));
+  //   } else {
+  //     return DashOffset.absolute(parseDoubleWithUnits(rawDashOffset)!);
+  //   }
+  // }
 
   /// Parses a `spreadMethod` attribute into a [TileMode].
   TileMode parseTileMode() {
@@ -1425,7 +1426,6 @@ class SvgParserState {
         parseTransform(getAttribute(attributes, 'transform', def: null));
 
     if (transform != null) {
-      // TODO
       return path?.transformed(transform);
     } else {
       return path;
@@ -1471,93 +1471,93 @@ class SvgParserState {
   }
 
   /// Parses a `font-weight` attribute value into a [FontWeight].
-  FontWeight? parseFontWeight(String? fontWeight) {
-    if (fontWeight == null) {
-      return null;
-    }
-    switch (fontWeight) {
-      case '100':
-        return FontWeight.w100;
-      case '200':
-        return FontWeight.w200;
-      case '300':
-        return FontWeight.w300;
-      case 'normal':
-      case '400':
-        return FontWeight.w400;
-      case '500':
-        return FontWeight.w500;
-      case '600':
-        return FontWeight.w600;
-      case 'bold':
-      case '700':
-        return FontWeight.w700;
-      case '800':
-        return FontWeight.w800;
-      case '900':
-        return FontWeight.w900;
-    }
-    throw UnsupportedError('Attribute value for font-weight="$fontWeight"'
-        ' is not supported');
-  }
+  // FontWeight? parseFontWeight(String? fontWeight) {
+  //   if (fontWeight == null) {
+  //     return null;
+  //   }
+  //   switch (fontWeight) {
+  //     case '100':
+  //       return FontWeight.w100;
+  //     case '200':
+  //       return FontWeight.w200;
+  //     case '300':
+  //       return FontWeight.w300;
+  //     case 'normal':
+  //     case '400':
+  //       return FontWeight.w400;
+  //     case '500':
+  //       return FontWeight.w500;
+  //     case '600':
+  //       return FontWeight.w600;
+  //     case 'bold':
+  //     case '700':
+  //       return FontWeight.w700;
+  //     case '800':
+  //       return FontWeight.w800;
+  //     case '900':
+  //       return FontWeight.w900;
+  //   }
+  //   throw UnsupportedError('Attribute value for font-weight="$fontWeight"'
+  //       ' is not supported');
+  // }
 
-  /// Parses a `font-style` attribute value into a [FontStyle].
-  FontStyle? parseFontStyle(String? fontStyle) {
-    if (fontStyle == null) {
-      return null;
-    }
-    switch (fontStyle) {
-      case 'normal':
-        return FontStyle.normal;
-      case 'italic':
-      case 'oblique':
-        return FontStyle.italic;
-    }
-    throw UnsupportedError('Attribute value for font-style="$fontStyle"'
-        ' is not supported');
-  }
+  // /// Parses a `font-style` attribute value into a [FontStyle].
+  // FontStyle? parseFontStyle(String? fontStyle) {
+  //   if (fontStyle == null) {
+  //     return null;
+  //   }
+  //   switch (fontStyle) {
+  //     case 'normal':
+  //       return FontStyle.normal;
+  //     case 'italic':
+  //     case 'oblique':
+  //       return FontStyle.italic;
+  //   }
+  //   throw UnsupportedError('Attribute value for font-style="$fontStyle"'
+  //       ' is not supported');
+  // }
 
-  /// Parses a `text-decoration` attribute value into a [TextDecoration].
-  TextDecoration? parseTextDecoration(String? textDecoration) {
-    if (textDecoration == null) {
-      return null;
-    }
-    switch (textDecoration) {
-      case 'none':
-        return TextDecoration.none;
-      case 'underline':
-        return TextDecoration.underline;
-      case 'overline':
-        return TextDecoration.overline;
-      case 'line-through':
-        return TextDecoration.lineThrough;
-    }
-    throw UnsupportedError(
-        'Attribute value for text-decoration="$textDecoration"'
-        ' is not supported');
-  }
+  // /// Parses a `text-decoration` attribute value into a [TextDecoration].
+  // TextDecoration? parseTextDecoration(String? textDecoration) {
+  //   if (textDecoration == null) {
+  //     return null;
+  //   }
+  //   switch (textDecoration) {
+  //     case 'none':
+  //       return TextDecoration.none;
+  //     case 'underline':
+  //       return TextDecoration.underline;
+  //     case 'overline':
+  //       return TextDecoration.overline;
+  //     case 'line-through':
+  //       return TextDecoration.lineThrough;
+  //   }
+  //   throw UnsupportedError(
+  //       'Attribute value for text-decoration="$textDecoration"'
+  //       ' is not supported');
+  // }
 
-  /// Parses a `text-decoration-style` attribute value into a [TextDecorationStyle].
-  TextDecorationStyle? parseTextDecorationStyle(String? textDecorationStyle) {
-    if (textDecorationStyle == null) {
-      return null;
-    }
-    switch (textDecorationStyle) {
-      case 'solid':
-        return TextDecorationStyle.solid;
-      case 'dashed':
-        return TextDecorationStyle.dashed;
-      case 'dotted':
-        return TextDecorationStyle.dotted;
-      case 'double':
-        return TextDecorationStyle.double;
-      case 'wavy':
-        return TextDecorationStyle.wavy;
-    }
-    throw UnsupportedError(
-        'Attribute value for text-decoration-style="$textDecorationStyle"'
-        ' is not supported');
-  }
+  // /// Parses a `text-decoration-style` attribute value into a [TextDecorationStyle].
+  // TextDecorationStyle? parseTextDecorationStyle(String? textDecorationStyle) {
+  //   if (textDecorationStyle == null) {
+  //     return null;
+  //   }
+  //   switch (textDecorationStyle) {
+  //     case 'solid':
+  //       return TextDecorationStyle.solid;
+  //     case 'dashed':
+  //       return TextDecorationStyle.dashed;
+  //     case 'dotted':
+  //       return TextDecorationStyle.dotted;
+  //     case 'double':
+  //       return TextDecorationStyle.double;
+  //     case 'wavy':
+  //       return TextDecorationStyle.wavy;
+  //   }
+  //   throw UnsupportedError(
+  //       'Attribute value for text-decoration-style="$textDecorationStyle"'
+  //       ' is not supported');
+  // }
 
   /// Parses style attributes or @style attribute.
   ///
@@ -1571,8 +1571,8 @@ class SvgParserState {
     return DrawableStyle.mergeAndBlend(
       parentStyle,
       stroke: parseStroke(bounds, parentStyle?.stroke, currentColor),
-      dashArray: parseDashArray(),
-      dashOffset: parseDashOffset(),
+      // dashArray: parseDashArray(),
+      // dashOffset: parseDashOffset(),
       fill:
           parseFill(bounds, parentStyle?.fill, defaultFillColor, currentColor),
       pathFillType: parseFillRule(
@@ -1582,29 +1582,29 @@ class SvgParserState {
       groupOpacity: parseOpacity(),
       mask: parseMask(),
       clipPath: parseClipPath(),
-      textStyle: DrawableTextStyle(
-        fontFamily: getAttribute(attributes, 'font-family'),
-        fontSize: parseFontSize(getAttribute(attributes, 'font-size'),
-            parentValue: parentStyle?.textStyle?.fontSize),
-        fontWeight: parseFontWeight(
-          getAttribute(attributes, 'font-weight', def: null),
-        ),
-        fontStyle: parseFontStyle(
-          getAttribute(attributes, 'font-style', def: null),
-        ),
-        anchor: parseTextAnchor(
-          getAttribute(attributes, 'text-anchor', def: 'inherit'),
-        ),
-        decoration: parseTextDecoration(
-          getAttribute(attributes, 'text-decoration', def: null),
-        ),
-        decorationColor: parseColor(
-          getAttribute(attributes, 'text-decoration-color', def: null),
-        ),
-        decorationStyle: parseTextDecorationStyle(
-          getAttribute(attributes, 'text-decoration-style', def: null),
-        ),
-      ),
+      // textStyle: DrawableTextStyle(
+      //   fontFamily: getAttribute(attributes, 'font-family'),
+      //   fontSize: parseFontSize(getAttribute(attributes, 'font-size'),
+      //       parentValue: parentStyle?.textStyle?.fontSize),
+      //   // fontWeight: parseFontWeight(
+      //   //   getAttribute(attributes, 'font-weight', def: null),
+      //   // ),
+      //   // fontStyle: parseFontStyle(
+      //   //   getAttribute(attributes, 'font-style', def: null),
+      //   // ),
+      //   // anchor: parseTextAnchor(
+      //   //   getAttribute(attributes, 'text-anchor', def: 'inherit'),
+      //   // ),
+      //   // decoration: parseTextDecoration(
+      //   //   getAttribute(attributes, 'text-decoration', def: null),
+      //   // ),
+      //   decorationColor: parseColor(
+      //     getAttribute(attributes, 'text-decoration-color', def: null),
+      //   ),
+      //   // decorationStyle: parseTextDecorationStyle(
+      //   //   getAttribute(attributes, 'text-decoration-style', def: null),
+      //   // ),
+      // ),
       blendMode: _blendModes[getAttribute(attributes, 'mix-blend-mode')!],
     );
   }

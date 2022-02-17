@@ -1,25 +1,22 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
-import 'dart:ui' as ui hide Path, Canvas, Picture;
+// import 'dart:ui' as ui hide Path, Canvas, Picture;
 
 import 'package:meta/meta.dart';
-import 'package:path_drawing/path_drawing.dart';
+// import 'package:path_drawing/path_drawing.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 import 'path.dart';
 import 'paint.dart';
-import 'parsers.dart';
-import 'render_picture.dart' as render_picture;
 
 /// ui.Paint used in masks.
-final ui.Paint _grayscaleDstInPaint = ui.Paint()
-  ..blendMode = ui.BlendMode.dstIn
-  ..colorFilter = const ui.ColorFilter.matrix(<double>[
-    0, 0, 0, 0, 0, //
-    0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0,
-    0.2126, 0.7152, 0.0722, 0, 0,
-  ]); //convert to grayscale (https://www.w3.org/Graphics/Color/sRGB) and use them as transparency
+// final ui.Paint _grayscaleDstInPaint = ui.Paint()
+//   ..blendMode = ui.BlendMode.dstIn
+//   ..colorFilter = const ui.ColorFilter.matrix(<double>[
+//     0, 0, 0, 0, 0, //
+//     0, 0, 0, 0, 0,
+//     0, 0, 0, 0, 0,
+//     0.2126, 0.7152, 0.0722, 0, 0,
+//   ]); //convert to grayscale (https://www.w3.org/Graphics/Color/sRGB) and use them as transparency
 
 /// Base interface for vector drawing.
 @immutable
@@ -34,7 +31,7 @@ abstract class Drawable {
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` specify the area to draw in.
-  void write() {}
+  void write(Set<Paint> paints) {}
 }
 
 /// A [Drawable] that can have a [DrawableStyle] applied to it.
@@ -72,10 +69,10 @@ class DrawableStyle {
   /// Creates a new [DrawableStyle].
   const DrawableStyle({
     this.stroke,
-    this.dashArray,
-    this.dashOffset,
+    // this.dashArray,
+    // this.dashOffset,
     this.fill,
-    this.textStyle,
+    // this.textStyle,
     this.pathFillType,
     this.groupOpacity,
     this.clipPath,
@@ -83,29 +80,29 @@ class DrawableStyle {
     this.blendMode,
   });
 
-  /// Used where 'dasharray' is 'none'
-  ///
-  /// This will not result in a drawing operation, but will clear out
-  /// inheritance.
-  static final CircularIntervalList<double> emptyDashArray =
-      CircularIntervalList<double>(const <double>[]);
+  // /// Used where 'dasharray' is 'none'
+  // ///
+  // /// This will not result in a drawing operation, but will clear out
+  // /// inheritance.
+  // static final CircularIntervalList<double> emptyDashArray =
+  //     CircularIntervalList<double>(const <double>[]);
 
   /// If not `null` and not `identical` with [DrawablePaint.empty], will result in a stroke
   /// for the rendered [DrawableShape]. Drawn __after__ the [fill].
   final DrawablePaint? stroke;
 
-  /// The dashing array to use for the [stroke], if any.
-  final CircularIntervalList<double>? dashArray;
+  // /// The dashing array to use for the [stroke], if any.
+  // final CircularIntervalList<double>? dashArray;
 
-  /// The [DashOffset] to use for where to begin the [dashArray].
-  final DashOffset? dashOffset;
+  // /// The [DashOffset] to use for where to begin the [dashArray].
+  // final DashOffset? dashOffset;
 
   /// If not `null` and not `identical` with [DrawablePaint.empty], will result in a fill
   /// for the rendered [DrawableShape].  Drawn __before__ the [stroke].
   final DrawablePaint? fill;
 
-  /// The style to apply to text elements of this drawable or its chidlren.
-  final DrawableTextStyle? textStyle;
+  // /// The style to apply to text elements of this drawable or its chidlren.
+  // final DrawableTextStyle? textStyle;
 
   /// The fill rule to use for this path.
   final PathFillType? pathFillType;
@@ -132,9 +129,9 @@ class DrawableStyle {
     DrawableStyle? parent, {
     DrawablePaint? fill,
     DrawablePaint? stroke,
-    CircularIntervalList<double>? dashArray,
-    DashOffset? dashOffset,
-    DrawableTextStyle? textStyle,
+    // CircularIntervalList<double>? dashArray,
+    // DashOffset? dashOffset,
+    // DrawableTextStyle? textStyle,
     PathFillType? pathFillType,
     double? groupOpacity,
     List<Path>? clipPath,
@@ -144,9 +141,9 @@ class DrawableStyle {
     return DrawableStyle(
       fill: DrawablePaint.merge(fill, parent?.fill),
       stroke: DrawablePaint.merge(stroke, parent?.stroke),
-      dashArray: dashArray ?? parent?.dashArray,
-      dashOffset: dashOffset ?? parent?.dashOffset,
-      textStyle: DrawableTextStyle.merge(textStyle, parent?.textStyle),
+      // dashArray: dashArray ?? parent?.dashArray,
+      // dashOffset: dashOffset ?? parent?.dashOffset,
+      // textStyle: DrawableTextStyle.merge(textStyle, parent?.textStyle),
       pathFillType: pathFillType ?? parent?.pathFillType,
       groupOpacity: groupOpacity,
       // clips don't make sense to inherit - applied to canvas with save/restore
@@ -159,7 +156,7 @@ class DrawableStyle {
 
   @override
   String toString() {
-    return 'DrawableStyle{$stroke,$dashArray,$dashOffset,$fill,$textStyle,$pathFillType,$groupOpacity,$clipPath,$mask}';
+    return 'DrawableStyle{$stroke,$fill,$pathFillType,$groupOpacity,$clipPath,$mask}';
   }
 }
 
@@ -275,129 +272,129 @@ class DrawablePaint {
   }
 }
 
-/// A wrapper class for Flutter's [TextStyle] class.
-///
-/// Provides non-opaque access to text styling properties.
-@immutable
-class DrawableTextStyle {
-  /// Creates a new [DrawableTextStyle].
-  const DrawableTextStyle({
-    this.decoration,
-    this.decorationColor,
-    this.decorationStyle,
-    this.fontWeight,
-    this.fontFamily,
-    this.fontSize,
-    this.fontStyle,
-    this.foreground,
-    this.background,
-    this.letterSpacing,
-    this.wordSpacing,
-    this.height,
-    this.locale,
-    this.textBaseline,
-    this.anchor,
-  });
+// /// A wrapper class for Flutter's [TextStyle] class.
+// ///
+// /// Provides non-opaque access to text styling properties.
+// @immutable
+// class DrawableTextStyle {
+//   /// Creates a new [DrawableTextStyle].
+//   const DrawableTextStyle({
+//     this.decoration,
+//     this.decorationColor,
+//     this.decorationStyle,
+//     this.fontWeight,
+//     this.fontFamily,
+//     this.fontSize,
+//     this.fontStyle,
+//     this.foreground,
+//     this.background,
+//     this.letterSpacing,
+//     this.wordSpacing,
+//     this.height,
+//     this.locale,
+//     this.textBaseline,
+//     this.anchor,
+//   });
 
-  /// Merges two drawable text styles together, prefering set properties from [b].
-  static DrawableTextStyle? merge(DrawableTextStyle? a, DrawableTextStyle? b) {
-    if (b == null) {
-      return a;
-    }
-    if (a == null) {
-      return b;
-    }
-    return DrawableTextStyle(
-      decoration: a.decoration ?? b.decoration,
-      decorationColor: a.decorationColor ?? b.decorationColor,
-      decorationStyle: a.decorationStyle ?? b.decorationStyle,
-      fontWeight: a.fontWeight ?? b.fontWeight,
-      fontStyle: a.fontStyle ?? b.fontStyle,
-      textBaseline: a.textBaseline ?? b.textBaseline,
-      fontFamily: a.fontFamily ?? b.fontFamily,
-      fontSize: a.fontSize ?? b.fontSize,
-      letterSpacing: a.letterSpacing ?? b.letterSpacing,
-      wordSpacing: a.wordSpacing ?? b.wordSpacing,
-      height: a.height ?? b.height,
-      locale: a.locale ?? b.locale,
-      background: a.background ?? b.background,
-      foreground: a.foreground ?? b.foreground,
-      anchor: a.anchor ?? b.anchor,
-    );
-  }
+//   /// Merges two drawable text styles together, prefering set properties from [b].
+//   static DrawableTextStyle? merge(DrawableTextStyle? a, DrawableTextStyle? b) {
+//     if (b == null) {
+//       return a;
+//     }
+//     if (a == null) {
+//       return b;
+//     }
+//     return DrawableTextStyle(
+//       decoration: a.decoration ?? b.decoration,
+//       decorationColor: a.decorationColor ?? b.decorationColor,
+//       decorationStyle: a.decorationStyle ?? b.decorationStyle,
+//       fontWeight: a.fontWeight ?? b.fontWeight,
+//       fontStyle: a.fontStyle ?? b.fontStyle,
+//       textBaseline: a.textBaseline ?? b.textBaseline,
+//       fontFamily: a.fontFamily ?? b.fontFamily,
+//       fontSize: a.fontSize ?? b.fontSize,
+//       letterSpacing: a.letterSpacing ?? b.letterSpacing,
+//       wordSpacing: a.wordSpacing ?? b.wordSpacing,
+//       height: a.height ?? b.height,
+//       locale: a.locale ?? b.locale,
+//       background: a.background ?? b.background,
+//       foreground: a.foreground ?? b.foreground,
+//       anchor: a.anchor ?? b.anchor,
+//     );
+//   }
 
-  /// The [TextDecoration] to draw with this text.
-  final ui.TextDecoration? decoration;
+//   /// The [TextDecoration] to draw with this text.
+//   final ui.TextDecoration? decoration;
 
-  /// The color to use when drawing the decoration.
-  final Color? decorationColor;
+//   /// The color to use when drawing the decoration.
+//   final Color? decorationColor;
 
-  /// The [TextDecorationStyle] of the decoration.
-  final ui.TextDecorationStyle? decorationStyle;
+//   /// The [TextDecorationStyle] of the decoration.
+//   final ui.TextDecorationStyle? decorationStyle;
 
-  /// The weight of the font.
-  final ui.FontWeight? fontWeight;
+//   /// The weight of the font.
+//   final ui.FontWeight? fontWeight;
 
-  /// The style of the font.
-  final ui.FontStyle? fontStyle;
+//   /// The style of the font.
+//   final ui.FontStyle? fontStyle;
 
-  /// The [TextBaseline] to use when drawing this text.
-  final ui.TextBaseline? textBaseline;
+//   /// The [TextBaseline] to use when drawing this text.
+//   final ui.TextBaseline? textBaseline;
 
-  /// The font family to use when drawing this text.
-  final String? fontFamily;
+//   /// The font family to use when drawing this text.
+//   final String? fontFamily;
 
-  /// The font size to use when drawing this text.
-  final double? fontSize;
+//   /// The font size to use when drawing this text.
+//   final double? fontSize;
 
-  /// The letter spacing to use when drawing this text.
-  final double? letterSpacing;
+//   /// The letter spacing to use when drawing this text.
+//   final double? letterSpacing;
 
-  /// The word spacing to use when drawing this text.
-  final double? wordSpacing;
+//   /// The word spacing to use when drawing this text.
+//   final double? wordSpacing;
 
-  /// The height of the text.
-  final double? height;
+//   /// The height of the text.
+//   final double? height;
 
-  /// The [Locale] to use when drawing this text.
-  final ui.Locale? locale;
+//   /// The [Locale] to use when drawing this text.
+//   final ui.Locale? locale;
 
-  /// The background to use when drawing this text.
-  final DrawablePaint? background;
+//   /// The background to use when drawing this text.
+//   final DrawablePaint? background;
 
-  /// The foreground to use when drawing this text.
-  final DrawablePaint? foreground;
+//   /// The foreground to use when drawing this text.
+//   final DrawablePaint? foreground;
 
-  /// The [DrawableTextAnchorPosition] to use when drawing this text.
-  final DrawableTextAnchorPosition? anchor;
+//   /// The [DrawableTextAnchorPosition] to use when drawing this text.
+//   final DrawableTextAnchorPosition? anchor;
 
-  /// Creates a Flutter [TextStyle], overriding the foreground if specified.
-  // ui.TextStyle toFlutterTextStyle({DrawablePaint? foregroundOverride}) {
-  //   return ui.TextStyle(
-  //     decoration: decoration,
-  //     decorationColor: decorationColor,
-  //     decorationStyle: decorationStyle,
-  //     fontWeight: fontWeight,
-  //     fontStyle: fontStyle,
-  //     textBaseline: textBaseline,
-  //     fontFamily: fontFamily,
-  //     fontSize: fontSize,
-  //     letterSpacing: letterSpacing,
-  //     wordSpacing: wordSpacing,
-  //     height: height,
-  //     locale: locale,
-  //     background: background?.toFlutterPaint(),
-  //     foreground:
-  //         foregroundOverride?.toFlutterPaint() ?? foreground?.toFlutterPaint(),
-  //   );
-  // }
+//   /// Creates a Flutter [TextStyle], overriding the foreground if specified.
+//   // ui.TextStyle toFlutterTextStyle({DrawablePaint? foregroundOverride}) {
+//   //   return ui.TextStyle(
+//   //     decoration: decoration,
+//   //     decorationColor: decorationColor,
+//   //     decorationStyle: decorationStyle,
+//   //     fontWeight: fontWeight,
+//   //     fontStyle: fontStyle,
+//   //     textBaseline: textBaseline,
+//   //     fontFamily: fontFamily,
+//   //     fontSize: fontSize,
+//   //     letterSpacing: letterSpacing,
+//   //     wordSpacing: wordSpacing,
+//   //     height: height,
+//   //     locale: locale,
+//   //     background: background?.toFlutterPaint(),
+//   //     foreground:
+//   //         foregroundOverride?.toFlutterPaint() ?? foreground?.toFlutterPaint(),
+//   //   );
+//   // }
 
-  @override
-  String toString() =>
-      'DrawableTextStyle{$decoration,$decorationColor,$decorationStyle,$fontWeight,'
-      '$fontFamily,$fontSize,$fontStyle,$foreground,$background,$letterSpacing,$wordSpacing,$height,'
-      '$locale,$textBaseline,$anchor}';
-}
+//   @override
+//   String toString() =>
+//       'DrawableTextStyle{$decoration,$decorationColor,$decorationStyle,$fontWeight,'
+//       '$fontFamily,$fontSize,$fontStyle,$foreground,$background,$letterSpacing,$wordSpacing,$height,'
+//       '$locale,$textBaseline,$anchor}';
+// }
 
 /// How to anchor text.
 enum DrawableTextAnchorPosition {
@@ -411,93 +408,93 @@ enum DrawableTextAnchorPosition {
   end,
 }
 
-/// A [Drawable] for text objects.
-class DrawableText implements Drawable {
-  /// Creates a new [DrawableText] object.
-  ///
-  /// One of fill or stroke must be specified.
-  DrawableText(
-    this.id,
-    this.fill,
-    this.stroke,
-    this.offset,
-    this.anchor, {
-    this.transform,
-  }) : assert(fill != null || stroke != null);
+// /// A [Drawable] for text objects.
+// class DrawableText implements Drawable {
+//   /// Creates a new [DrawableText] object.
+//   ///
+//   /// One of fill or stroke must be specified.
+//   DrawableText(
+//     this.id,
+//     this.fill,
+//     this.stroke,
+//     this.offset,
+//     this.anchor, {
+//     this.transform,
+//   }) : assert(fill != null || stroke != null);
 
-  @override
-  final String? id;
+//   @override
+//   final String? id;
 
-  /// The offset for positioning the text. The [anchor] property controls
-  /// how this offset is interpreted.
-  final ui.Offset offset;
+//   /// The offset for positioning the text. The [anchor] property controls
+//   /// how this offset is interpreted.
+//   final Point offset;
 
-  /// The anchor for the offset, i.e. whether it is the start, middle, or end
-  /// of the text.
-  final DrawableTextAnchorPosition anchor;
+//   /// The anchor for the offset, i.e. whether it is the start, middle, or end
+//   /// of the text.
+//   final DrawableTextAnchorPosition anchor;
 
-  /// If specified, how to draw the interior portion of the text.
-  final ui.Paragraph? fill;
+//   /// If specified, how to draw the interior portion of the text.
+//   final ui.Paragraph? fill;
 
-  /// If specified, how to draw the outline of the text.
-  final ui.Paragraph? stroke;
+//   /// If specified, how to draw the outline of the text.
+//   final ui.Paragraph? stroke;
 
-  /// A transform to apply when drawing the text.
-  final AffineMatrix? transform;
+//   /// A transform to apply when drawing the text.
+//   final AffineMatrix? transform;
 
-  @override
-  bool get hasDrawableContent =>
-      (fill?.width ?? 0.0) + (stroke?.width ?? 0.0) > 0.0;
+//   @override
+//   bool get hasDrawableContent =>
+//       (fill?.width ?? 0.0) + (stroke?.width ?? 0.0) > 0.0;
 
-  @override
-  void write() {
-    dynamic canvas;
-    if (!hasDrawableContent) {
-      return;
-    }
-    if (transform != null) {
-      canvas.save();
-      canvas.transform(transform!);
-    }
-    if (fill != null) {
-      canvas.drawParagraph(fill!, resolveOffset(fill!, anchor, offset));
-    }
-    if (stroke != null) {
-      canvas.drawParagraph(stroke!, resolveOffset(stroke!, anchor, offset));
-    }
-    if (transform != null) {
-      canvas.restore();
-    }
-  }
+//   @override
+//   void write() {
+//     dynamic canvas;
+//     if (!hasDrawableContent) {
+//       return;
+//     }
+//     if (transform != null) {
+//       canvas.save();
+//       canvas.transform(transform!);
+//     }
+//     if (fill != null) {
+//       canvas.drawParagraph(fill!, resolveOffset(fill!, anchor, offset));
+//     }
+//     if (stroke != null) {
+//       canvas.drawParagraph(stroke!, resolveOffset(stroke!, anchor, offset));
+//     }
+//     if (transform != null) {
+//       canvas.restore();
+//     }
+//   }
 
-  /// Determines the correct location for an [Offset] given laid-out
-  /// [paragraph] and a [DrawableTextPosition].
-  static ui.Offset resolveOffset(
-    ui.Paragraph paragraph,
-    DrawableTextAnchorPosition anchor,
-    ui.Offset offset,
-  ) {
-    switch (anchor) {
-      case DrawableTextAnchorPosition.middle:
-        return ui.Offset(
-          offset.dx - paragraph.longestLine / 2,
-          offset.dy - paragraph.alphabeticBaseline,
-        );
-      case DrawableTextAnchorPosition.end:
-        return ui.Offset(
-          offset.dx - paragraph.longestLine,
-          offset.dy - paragraph.alphabeticBaseline,
-        );
-      case DrawableTextAnchorPosition.start:
-        return ui.Offset(
-          offset.dx,
-          offset.dy - paragraph.alphabeticBaseline,
-        );
-      default:
-        return offset;
-    }
-  }
-}
+//   /// Determines the correct location for an [Offset] given laid-out
+//   /// [paragraph] and a [DrawableTextPosition].
+//   static Point resolveOffset(
+//     ui.Paragraph paragraph,
+//     DrawableTextAnchorPosition anchor,
+//     Point offset,
+//   ) {
+//     switch (anchor) {
+//       case DrawableTextAnchorPosition.middle:
+//         return Point(
+//           offset.x - paragraph.longestLine / 2,
+//           offset.y - paragraph.alphabeticBaseline,
+//         );
+//       case DrawableTextAnchorPosition.end:
+//         return Point(
+//           offset.x - paragraph.longestLine,
+//           offset.y - paragraph.alphabeticBaseline,
+//         );
+//       case DrawableTextAnchorPosition.start:
+//         return Point(
+//           offset.x,
+//           offset.y - paragraph.alphabeticBaseline,
+//         );
+//       default:
+//         return offset;
+//     }
+//   }
+// }
 
 /// Contains reusable drawing elements that can be referenced by a String ID.
 class DrawableDefinitionServer {
@@ -616,10 +613,10 @@ class DrawableLinearGradient extends DrawableGradient {
         );
 
   /// The starting offset of this gradient.
-  final ui.Offset from;
+  final Point from;
 
   /// The ending offset of this gradient.
-  final ui.Offset to;
+  final Point to;
 
   @override
   Shader createShader(Rect bounds) {
@@ -638,14 +635,14 @@ class DrawableLinearGradient extends DrawableGradient {
 
     final Point fromPoint = m4transform.transformPoint(
       Point(
-        from.dx,
-        from.dy,
+        from.x,
+        from.y,
       ),
     );
     final Point toPoint = m4transform.transformPoint(
       Point(
-        to.dx,
-        to.dy,
+        to.x,
+        to.y,
       ),
     );
 
@@ -682,13 +679,13 @@ class DrawableRadialGradient extends DrawableGradient {
         );
 
   /// The center of the radial gradient.
-  final ui.Offset center;
+  final Point center;
 
   /// The radius of the radial gradient.
   final double? radius;
 
   /// The focal point, if any, for a two point conical gradient.
-  final ui.Offset focal;
+  final Point focal;
 
   /// The radius of the focal point.
   final double focalRadius;
@@ -709,14 +706,14 @@ class DrawableRadialGradient extends DrawableGradient {
     }
 
     return RadialGradient(
-      center: Point(center.dx, center.dy),
+      center: Point(center.x, center.y),
       radius: radius!,
       colors: colors!,
       offsets: offsets,
       tileMode: spreadMethod,
       transform: m4transform,
-      focalX: focal.dx,
-      focalY: focal.dy,
+      focalX: focal.x,
+      focalY: focal.y,
     );
   }
 }
@@ -731,28 +728,28 @@ class DrawableViewport {
   const DrawableViewport(
     this.size,
     this.viewBox, {
-    this.viewBoxOffset = ui.Offset.zero,
+    this.viewBoxOffset = Point.zero,
   });
 
   /// The offset for all drawing commands in this Drawable.
-  final ui.Offset viewBoxOffset;
+  final Point viewBoxOffset;
 
   /// A [Rect] representing the viewBox of this DrawableViewport.
-  Rect get viewBoxRect => Rect.fromLTRB(0, 0, viewBox.width, viewBox.height);
+  Rect get viewBoxRect => Rect.fromLTRB(0, 0, viewBox.x, viewBox.y);
 
   /// The viewBox size for the drawable.
-  final ui.Size viewBox;
+  final Point viewBox;
 
   /// The viewport size of the drawable.
   ///
   /// This may or may not be identical to the
-  final ui.Size size;
+  final Point size;
 
   /// The width of the viewport rect.
-  double get width => size.width;
+  double get width => size.x;
 
   /// The height of the viewport rect.
-  double get height => size.height;
+  double get height => size.y;
 
   @override
   String toString() => 'DrawableViewport{$size, viewBox: $viewBox, '
@@ -800,12 +797,12 @@ class DrawableRoot implements DrawableParent {
   /// If the `viewBox` dimensions are not 1:1 with `desiredSize`, will scale to
   /// the smaller dimension and translate to center the image along the larger
   /// dimension.
-  void scaleCanvasToViewBox(dynamic canvas, ui.Size desiredSize) {
+  void scaleCanvasToViewBox(dynamic canvas, Point desiredSize) {
     final Matrix4 transform = Matrix4.identity();
-    if (render_picture.scaleCanvasToViewBox(
+    if (scaleCanvasToViewBox2(
       transform,
       desiredSize,
-      ui.Rect.fromLTRB(viewport.viewBoxRect.left, viewport.viewBoxRect.top,
+      Rect.fromLTRB(viewport.viewBoxRect.left, viewport.viewBoxRect.top,
           viewport.viewBoxRect.right, viewport.viewBoxRect.bottom),
       viewport.size,
     )) {
@@ -820,14 +817,14 @@ class DrawableRoot implements DrawableParent {
 
   @override
   bool get hasDrawableContent =>
-      children.isNotEmpty == true && !viewport.viewBox.isEmpty;
+      children.isNotEmpty == true; // && !viewport.viewBox.isEmpty;
 
   /// Draws the contents or children of this [Drawable] to the `canvas`, using
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` is not used.
   @override
-  void write() {
+  void write(Set<Paint> paints) {
     dynamic canvas;
     if (!hasDrawableContent) {
       return;
@@ -838,17 +835,17 @@ class DrawableRoot implements DrawableParent {
       canvas.transform(transform!);
     }
 
-    if (viewport.viewBoxOffset != ui.Offset.zero) {
-      canvas.translate(viewport.viewBoxOffset.dx, viewport.viewBoxOffset.dy);
+    if (viewport.viewBoxOffset != Point.zero) {
+      canvas.translate(viewport.viewBoxOffset.x, viewport.viewBoxOffset.y);
     }
     for (Drawable child in children) {
-      child.write();
+      child.write(paints);
     }
 
     if (transform != null) {
       canvas.restore();
     }
-    if (viewport.viewBoxOffset != ui.Offset.zero) {
+    if (viewport.viewBoxOffset != Point.zero) {
       canvas.restore();
     }
   }
@@ -894,10 +891,10 @@ class DrawableRoot implements DrawableParent {
       stroke: newStyle.stroke,
       clipPath: newStyle.clipPath,
       mask: newStyle.mask,
-      dashArray: newStyle.dashArray,
-      dashOffset: newStyle.dashOffset,
+      // dashArray: newStyle.dashArray,
+      // dashOffset: newStyle.dashOffset,
       pathFillType: newStyle.pathFillType,
-      textStyle: newStyle.textStyle,
+      // textStyle: newStyle.textStyle,
     );
 
     final List<Drawable> mergedChildren =
@@ -947,71 +944,75 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   bool get hasDrawableContent => children != null && children!.isNotEmpty;
 
   @override
-  void write() {
-    dynamic canvas;
-    if (!hasDrawableContent) {
-      return;
+  void write(Set<Paint> paints) {
+    for (final child in children ?? []) {
+      child.write(paints);
     }
 
-    final Function innerDraw = () {
-      if (style!.groupOpacity == 0) {
-        return;
-      }
-      if (transform != null) {
-        canvas.save();
-        canvas.transform(transform!);
-      }
+    // dynamic canvas;
+    // if (!hasDrawableContent) {
+    //   return;
+    // }
 
-      bool needsSaveLayer = style!.mask != null;
+    // final Function innerDraw = () {
+    //   if (style!.groupOpacity == 0) {
+    //     return;
+    //   }
+    //   if (transform != null) {
+    //     canvas.save();
+    //     canvas.transform(transform!);
+    //   }
 
-      final ui.Paint blendingPaint = ui.Paint();
-      if (style!.groupOpacity != null && style!.groupOpacity != 1.0) {
-        blendingPaint.color = ui.Color.fromRGBO(0, 0, 0, style!.groupOpacity!);
-        needsSaveLayer = true;
-      }
-      if (style!.blendMode != null) {
-        // blendingPaint.blendMode = style!.blendMode!;
-        needsSaveLayer = true;
-      }
-      if (needsSaveLayer) {
-        canvas.saveLayer(null, blendingPaint);
-      }
+    //   bool needsSaveLayer = style!.mask != null;
 
-      for (Drawable child in children!) {
-        child.write();
-      }
+    //   final ui.Paint blendingPaint = ui.Paint();
+    //   if (style!.groupOpacity != null && style!.groupOpacity != 1.0) {
+    //     blendingPaint.color = ui.Color.fromRGBO(0, 0, 0, style!.groupOpacity!);
+    //     needsSaveLayer = true;
+    //   }
+    //   if (style!.blendMode != null) {
+    //     // blendingPaint.blendMode = style!.blendMode!;
+    //     needsSaveLayer = true;
+    //   }
+    //   if (needsSaveLayer) {
+    //     canvas.saveLayer(null, blendingPaint);
+    //   }
 
-      if (style!.mask != null) {
-        canvas.saveLayer(null, _grayscaleDstInPaint);
-        style!.mask!.write();
-        canvas.restore();
-      }
-      if (needsSaveLayer) {
-        canvas.restore();
-      }
-      if (transform != null) {
-        canvas.restore();
-      }
-    };
+    //   for (Drawable child in children!) {
+    //     child.write();
+    //   }
 
-    if (style?.clipPath?.isNotEmpty == true) {
-      for (Path clipPath in style!.clipPath!) {
-        canvas.save();
-        canvas.clipPath(clipPath);
-        if (children!.length > 1) {
-          canvas.saveLayer(null, ui.Paint());
-        }
+    //   if (style!.mask != null) {
+    //     canvas.saveLayer(null, _grayscaleDstInPaint);
+    //     style!.mask!.write();
+    //     canvas.restore();
+    //   }
+    //   if (needsSaveLayer) {
+    //     canvas.restore();
+    //   }
+    //   if (transform != null) {
+    //     canvas.restore();
+    //   }
+    // };
 
-        innerDraw();
+    // if (style?.clipPath?.isNotEmpty == true) {
+    //   for (Path clipPath in style!.clipPath!) {
+    //     canvas.save();
+    //     canvas.clipPath(clipPath);
+    //     if (children!.length > 1) {
+    //       canvas.saveLayer(null, ui.Paint());
+    //     }
 
-        if (children!.length > 1) {
-          canvas.restore();
-        }
-        canvas.restore();
-      }
-    } else {
-      innerDraw();
-    }
+    //     innerDraw();
+
+    //     if (children!.length > 1) {
+    //       canvas.restore();
+    //     }
+    //     canvas.restore();
+    //   }
+    // } else {
+    //   innerDraw();
+    // }
   }
 
   @override
@@ -1021,10 +1022,10 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
       fill: newStyle.fill,
       stroke: newStyle.stroke,
       clipPath: newStyle.clipPath,
-      dashArray: newStyle.dashArray,
-      dashOffset: newStyle.dashOffset,
+      // dashArray: newStyle.dashArray,
+      // dashOffset: newStyle.dashOffset,
       pathFillType: newStyle.pathFillType,
-      textStyle: newStyle.textStyle,
+      // textStyle: newStyle.textStyle,
     );
 
     final List<Drawable> mergedChildren =
@@ -1044,97 +1045,97 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   }
 }
 
-/// A raster image (e.g. PNG, JPEG, or GIF) embedded in the drawable.
-class DrawableRasterImage implements DrawableStyleable {
-  /// Creates a new [DrawableRasterImage].
-  const DrawableRasterImage(
-    this.id,
-    this.image,
-    this.offset,
-    this.style, {
-    this.size,
-    this.transform,
-  });
+// /// A raster image (e.g. PNG, JPEG, or GIF) embedded in the drawable.
+// class DrawableRasterImage implements DrawableStyleable {
+//   /// Creates a new [DrawableRasterImage].
+//   const DrawableRasterImage(
+//     this.id,
+//     this.image,
+//     this.offset,
+//     this.style, {
+//     this.size,
+//     this.transform,
+//   });
 
-  @override
-  final String? id;
+//   @override
+//   final String? id;
 
-  /// The [Image] to draw.
-  final ui.Image image;
+//   /// The [Image] to draw.
+//   final ui.Image image;
 
-  /// The position for the top-left corner of the image.
-  final ui.Offset offset;
+//   /// The position for the top-left corner of the image.
+//   final Point offset;
 
-  /// The size to scale the image to.
-  final ui.Size? size;
+//   /// The size to scale the image to.
+//   final Point? size;
 
-  @override
-  final AffineMatrix? transform;
+//   @override
+//   final AffineMatrix? transform;
 
-  @override
-  final DrawableStyle style;
+//   @override
+//   final DrawableStyle style;
 
-  @override
-  void write() {
-    dynamic canvas;
-    final ui.Size imageSize = ui.Size(
-      image.width.toDouble(),
-      image.height.toDouble(),
-    );
-    ui.Size? desiredSize = imageSize;
-    double scale = 1.0;
-    if (size != null) {
-      desiredSize = size;
-      scale = math.min(
-        size!.width / image.width,
-        size!.height / image.height,
-      );
-    }
-    if (scale != 1.0 || offset != ui.Offset.zero || transform != null) {
-      final ui.Size halfDesiredSize = desiredSize! / 2.0;
-      final ui.Size scaledHalfImageSize = imageSize * scale / 2.0;
-      final ui.Offset shift = ui.Offset(
-        halfDesiredSize.width - scaledHalfImageSize.width,
-        halfDesiredSize.height - scaledHalfImageSize.height,
-      );
-      canvas.save();
-      canvas.translate(offset.dx + shift.dx, offset.dy + shift.dy);
-      canvas.scale(scale, scale);
-      if (transform != null) {
-        canvas.transform(transform!);
-      }
-    }
-    canvas.drawImage(image, ui.Offset.zero, ui.Paint());
-    if (scale != 1.0 || offset != ui.Offset.zero || transform != null) {
-      canvas.restore();
-    }
-  }
+//   @override
+//   void write() {
+//     dynamic canvas;
+//     final Point imageSize = Point(
+//       image.width.toDouble(),
+//       image.height.toDouble(),
+//     );
+//     Point? desiredSize = imageSize;
+//     double scale = 1.0;
+//     if (size != null) {
+//       desiredSize = size;
+//       scale = math.min(
+//         size!.x / image.width,
+//         size!.y / image.height,
+//       );
+//     }
+//     if (scale != 1.0 || offset != Point.zero || transform != null) {
+//       final Point halfDesiredSize = desiredSize! / 2.0;
+//       final Point scaledHalfImageSize = imageSize * scale / 2.0;
+//       final Point shift = Point(
+//         halfDesiredSize.x - scaledHalfImageSize.x,
+//         halfDesiredSize.y - scaledHalfImageSize.y,
+//       );
+//       canvas.save();
+//       canvas.translate(offset.x + shift.x, offset.y + shift.y);
+//       canvas.scale(scale, scale);
+//       if (transform != null) {
+//         canvas.transform(transform!);
+//       }
+//     }
+//     canvas.drawImage(image, Point.zero, ui.Paint());
+//     if (scale != 1.0 || offset != Point.zero || transform != null) {
+//       canvas.restore();
+//     }
+//   }
 
-  @override
-  bool get hasDrawableContent => image.height > 0 && image.width > 0;
+//   @override
+//   bool get hasDrawableContent => image.height > 0 && image.width > 0;
 
-  @override
-  DrawableRasterImage mergeStyle(DrawableStyle newStyle) {
-    return DrawableRasterImage(
-      id,
-      image,
-      offset,
-      DrawableStyle.mergeAndBlend(
-        style,
-        fill: newStyle.fill,
-        stroke: newStyle.stroke,
-        clipPath: newStyle.clipPath,
-        mask: newStyle.mask,
-        dashArray: newStyle.dashArray,
-        dashOffset: newStyle.dashOffset,
-        pathFillType: newStyle.pathFillType,
-        textStyle: newStyle.textStyle,
-      ),
-      size: size,
-      transform: transform,
-    );
-  }
-}
+//   @override
+//   DrawableRasterImage mergeStyle(DrawableStyle newStyle) {
+//     return DrawableRasterImage(
+//       id,
+//       image,
+//       offset,
+//       DrawableStyle.mergeAndBlend(
+//         style,
+//         fill: newStyle.fill,
+//         stroke: newStyle.stroke,
+//         clipPath: newStyle.clipPath,
+//         mask: newStyle.mask,
+//         dashArray: newStyle.dashArray,
+//         dashOffset: newStyle.dashOffset,
+//         pathFillType: newStyle.pathFillType,
+//         textStyle: newStyle.textStyle,
+//       ),
+//       size: size,
+//       transform: transform,
+//     );
+//   }
+// }
 
 /// Represents a drawing element that will be rendered to the canvas.
 class DrawableShape implements DrawableStyleable {
@@ -1164,10 +1165,24 @@ class DrawableShape implements DrawableStyleable {
   bool get hasDrawableContent => bounds.width + bounds.height > 0;
 
   @override
-  void write() {
-    style.fill?.toPaint().write(null);
-    style.stroke?.toPaint().write(null);
+  void write(Set<Paint> paints) {
+    final Paint? fillPaint = style.fill?.toPaint();
+    final Paint? strokePaint = style.stroke?.toPaint();
     path.write();
+    if (fillPaint != null) {
+      if (paints.add(fillPaint)) {
+        fillPaint.write(null);
+      }
+      print(
+          'canvas.drawPath(path${path.hashCode}, paint${fillPaint.hashCode});');
+    }
+    if (strokePaint != null) {
+      if (paints.add(strokePaint)) {
+        strokePaint.write(null);
+      }
+      print(
+          'canvas.drawPath(path${path.hashCode}, paint${strokePaint.hashCode});');
+    }
     return;
     // if (!hasDrawableContent) {
     //   return;
@@ -1245,28 +1260,26 @@ class DrawableShape implements DrawableStyleable {
         stroke: newStyle.stroke,
         clipPath: newStyle.clipPath,
         mask: newStyle.mask,
-        dashArray: newStyle.dashArray,
-        dashOffset: newStyle.dashOffset,
+        // dashArray: newStyle.dashArray,
+        // dashOffset: newStyle.dashOffset,
         pathFillType: newStyle.pathFillType,
-        textStyle: newStyle.textStyle,
+        // textStyle: newStyle.textStyle,
       ),
       transform: transform,
     );
   }
 }
 
-
 // abstract class PathMovement {
 //   PathMovement transform(Float64List matrix4);
 // }
 
 // class MoveToCommand extends PathMovement {
-//   const MoveToCommand(this.dx, this.dy);
+//   const MoveToCommand(this.x, this.y);
 
 //   final double dx;
 //   final double dy;
 // }
-
 
 // class DrawPath {
 
@@ -1287,3 +1300,31 @@ class DrawableShape implements DrawableStyleable {
 //   }
 // }
 
+/// Scales a matrix to the given [viewBox] based on the [desiredSize]
+/// of the widget.
+///
+/// Returns true if the supplied matrix was modified.
+bool scaleCanvasToViewBox2(
+  Matrix4 matrix,
+  Point desiredSize,
+  Rect viewBox,
+  Point pictureSize,
+) {
+  if (desiredSize == viewBox.size) {
+    return false;
+  }
+  final double scale = math.min(
+    desiredSize.x / viewBox.width,
+    desiredSize.y / viewBox.height,
+  );
+  final Point scaledHalfViewBoxSize = viewBox.size * scale / 2.0;
+  final Point halfDesiredSize = desiredSize / 2.0;
+  final Point shift = Point(
+    halfDesiredSize.x - scaledHalfViewBoxSize.x,
+    halfDesiredSize.y - scaledHalfViewBoxSize.y,
+  );
+  matrix
+    ..translate(shift.x, shift.y)
+    ..scale(scale, scale);
+  return true;
+}

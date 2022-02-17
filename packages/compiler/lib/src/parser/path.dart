@@ -27,6 +27,7 @@ class Rect {
 
   double get width => right - left;
   double get height => bottom - top;
+  Point get size => Point(width, height);
 
   @override
   String toString() => 'Rect.fromLTRB($left, $top, $right, $bottom)';
@@ -96,6 +97,8 @@ abstract class PathCommand {
 
   final PathCommandType type;
   void write(buffer);
+
+  PathCommand transformed(AffineMatrix matrix);
 }
 
 @immutable
@@ -104,8 +107,14 @@ class OvalCommand extends PathCommand {
 
   final Rect oval;
 
+  @override
   void write(buffer) {
     print('  ..addOval($oval)');
+  }
+
+  @override
+  OvalCommand transformed(AffineMatrix matrix) {
+    return OvalCommand(matrix.transformRect(oval));
   }
 
   @override
@@ -122,8 +131,14 @@ class RectCommand extends PathCommand {
 
   final Rect rect;
 
+  @override
   void write(buffer) {
     print('..addRect($rect)');
+  }
+
+  @override
+  RectCommand transformed(AffineMatrix matrix) {
+    return RectCommand(matrix.transformRect(rect));
   }
 
   @override
@@ -140,8 +155,14 @@ class RRectCommand extends PathCommand {
 
   final RRect rrect;
 
+  @override
   void write(buffer) {
     print('..addRRect($rrect)');
+  }
+
+  @override
+  RRectCommand transformed(AffineMatrix matrix) {
+    return RRectCommand(matrix.transformRRect(rrect));
   }
 
   @override
@@ -159,8 +180,15 @@ class LineToCommand extends PathCommand {
   final double x;
   final double y;
 
+  @override
   void write(buffer) {
     print('  ..lineTo($x, $y)');
+  }
+
+  @override
+  LineToCommand transformed(AffineMatrix matrix) {
+    final Point xy = matrix.transformPoint(Point(x, y));
+    return LineToCommand(xy.x, xy.y);
   }
 
   @override
@@ -178,8 +206,15 @@ class MoveToCommand extends PathCommand {
   final double x;
   final double y;
 
+  @override
   void write(buffer) {
     print('  ..moveTo($x, $y)');
+  }
+
+  @override
+  MoveToCommand transformed(AffineMatrix matrix) {
+    final Point xy = matrix.transformPoint(Point(x, y));
+    return MoveToCommand(xy.x, xy.y);
   }
 
   @override
@@ -202,8 +237,17 @@ class CubicToCommand extends PathCommand {
   final double x3;
   final double y3;
 
+  @override
   void write(buffer) {
     print('  ..cubicTo($x1, $y1, $x2, $y2, $x3, $y3)');
+  }
+
+  @override
+  CubicToCommand transformed(AffineMatrix matrix) {
+    final Point xy1 = matrix.transformPoint(Point(x1, y1));
+    final Point xy2 = matrix.transformPoint(Point(x2, y2));
+    final Point xy3 = matrix.transformPoint(Point(x3, y3));
+    return CubicToCommand(xy1.x, xy1.y, xy2.x, xy2.y, xy3.x, xy3.y);
   }
 
   @override
@@ -225,8 +269,14 @@ class CubicToCommand extends PathCommand {
 class CloseCommand extends PathCommand {
   const CloseCommand() : super(PathCommandType.close);
 
+  @override
   void write(buffer) {
     print('  ..close()');
+  }
+
+  @override
+  CloseCommand transformed(AffineMatrix matrix) {
+    return this;
   }
 
   @override
@@ -293,14 +343,20 @@ class PathBuilder implements PathProxy {
 
   late PathFillType fillType;
 
-  Path toPath() {
-    return Path(commands: _commands, fillType: fillType);
+  Path toPath({bool reset = true}) {
+    final Path path = Path(commands: _commands, fillType: fillType);
+    if (reset) {
+      _commands.clear();
+    }
+    return path;
   }
 }
 
 @immutable
 class Point {
   const Point(this.x, this.y);
+
+  static const Point zero = Point(0, 0);
 
   final double x;
   final double y;
@@ -311,6 +367,14 @@ class Point {
   @override
   bool operator ==(Object other) {
     return other is Point && other.x == x && other.y == y;
+  }
+
+  Point operator /(double divisor) {
+    return Point(x / divisor, y / divisor);
+  }
+
+  Point operator *(double multiplicand) {
+    return Point(x * multiplicand, y * multiplicand);
   }
 }
 
@@ -394,6 +458,27 @@ class AffineMatrix {
     );
   }
 
+  Rect transformRect(Rect rect) {
+    return Rect.fromLTRB(
+      (a * rect.left) + (c * rect.top) + e,
+      (b * rect.left) + (d * rect.top) + e,
+      (a * rect.right) + (c * rect.bottom) + e,
+      (b * rect.right) + (d * rect.bottom) + e,
+    );
+  }
+
+  RRect transformRRect(RRect rrect) {
+    return RRect.fromLTRBXY(
+      (a * rrect.left) + (c * rrect.top) + e,
+      (b * rrect.left) + (d * rrect.top) + e,
+      (a * rrect.right) + (c * rrect.bottom) + e,
+      (b * rrect.right) + (d * rrect.bottom) + e,
+      // TODO: transform these?
+      rrect.rx,
+      rrect.ry,
+    );
+  }
+
   Float64List toMatrix4() {
     return Float64List.fromList(<double>[
       a, b, 0, 0, //
@@ -444,9 +529,6 @@ class Path {
 
   void write() {
     print('final path${hashCode} = ');
-    if (transform != null) {
-      print('(');
-    }
     print('Path()');
     if (fillType != PathFillType.nonZero) {
       print('  ..fillType = $fillType');
@@ -454,10 +536,15 @@ class Path {
     for (final PathCommand command in _commands) {
       command.write(null);
     }
-    if (transform != null) {
-      print(').transform(Float64List.fromList(<double>$transform)');
-    }
     print(';');
+  }
+
+  Path transformed(AffineMatrix matrix) {
+    final List<PathCommand> commands = <PathCommand>[];
+    for (final PathCommand command in _commands) {
+      commands.add(command.transformed(matrix));
+    }
+    return Path(commands: commands, fillType: fillType);
   }
 
   @override

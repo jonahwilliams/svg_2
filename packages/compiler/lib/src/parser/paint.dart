@@ -232,7 +232,6 @@ class Paint {
 
   void write(buffer) {
     shader?.write('shade${shader.hashCode}', buffer);
-    print('My color: $color $hashCode');
     print('final paint${hashCode} = Paint()');
     if (blendMode != BlendMode.srcOver) {
       print('  ..blendMode = $blendMode');

@@ -9,3 +9,4 @@ dependencies:
   path_parsing:
   xml:
   ffi:
+  typed_data:

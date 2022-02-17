@@ -9,8 +9,12 @@ import 'package:compiler/src/parser/parser_state.dart';
 import 'package:compiler/src/parser/picture_stream.dart';
 import 'package:xml/xml_events.dart';
 
+import 'src/encoder.dart';
+import 'src/parser/path.dart';
+
 void main(List<String> args) async {
   final String xml = File(args.first).readAsStringSync();
+  final File output = File(args.last);
   final SvgParserState state = SvgParserState(
     parseEvents(xml),
     const SvgTheme(),
@@ -19,29 +23,39 @@ void main(List<String> args) async {
   );
   final root = await state.parse();
   final Set<Paint> paints = <Paint>{};
-  print('''
-import 'dart:ui';
+  final List<Path> paths = [];
+  root.write(paints, paths);
+//   print('''
+// import 'dart:ui';
 
-void main() {
-  window.onBeginFrame = (_) {
-    final recorder = PictureRecorder();
-    final canvas = Canvas(recorder);
-    doDraw(canvas);
-    final picture = recorder.endRecording();
+// void main() {
+//   window.onBeginFrame = (_) {
+//     final recorder = PictureRecorder();
+//     final canvas = Canvas(recorder);
+//     doDraw(canvas);
+//     final picture = recorder.endRecording();
 
-    final builder = SceneBuilder();
-    builder.addPicture(Offset.zero, picture);
-    final scene = builder.build();
-    window.render(scene);
+//     final builder = SceneBuilder();
+//     builder.addPicture(Offset.zero, picture);
+//     final scene = builder.build();
+//     window.render(scene);
 
-    picture.dispose();
-    scene.dispose();
-  };
-  window.scheduleFrame();
-}
+//     picture.dispose();
+//     scene.dispose();
+//   };
+//   window.scheduleFrame();
+// }
 
-void doDraw(Canvas canvas) {
-''');
-  root.write(paints);
-  print('}');
+// void doDraw(Canvas canvas) {
+// ''');
+//   root.write(paints);
+//   print('}');
+  var codec = PaintingCodec();
+  var result  = codec.encodeMessage([
+    0,
+    paints.toList(),
+    paths,
+  ]);
+
+  output.writeAsBytesSync(result!.buffer.asUint8List());
 }

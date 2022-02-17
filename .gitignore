@@ -7,3 +7,5 @@ packages/compiler/build/
 packages/compiler/.dart_tool/
 packages/compiler/pubspec.lock
 packages/compiler/.packages
+
+packages/lyon_wrapper/target

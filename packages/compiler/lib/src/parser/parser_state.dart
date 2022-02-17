@@ -1,11 +1,15 @@
 import 'dart:collection';
-import 'dart:ui';
+import 'dart:ui'
+    hide Path, BlendMode, PaintingStyle, FilterQuality, StrokeCap, StrokeJoin;
 
-import 'package:flutter/foundation.dart';
-import 'package:path_drawing/path_drawing.dart';
-import 'package:vector_math/vector_math_64.dart';
+// import 'package:flutter/foundation.dart';
+// import 'package:path_drawing/path_drawing.dart';
+import 'package:path_drawing/path_drawing.dart' hide parseSvgPathData;
+// import 'package:vector_math/vector_math_64.dart';
 import 'package:xml/xml_events.dart' hide parseEvents;
 
+import 'path.dart';
+import 'paint.dart';
 import 'errors.dart';
 import 'numbers.dart';
 import 'parsers.dart';
@@ -74,7 +78,7 @@ class _TextInfo {
 
   final DrawableStyle style;
   final Offset offset;
-  final Matrix4? transform;
+  final AffineMatrix? transform;
 
   @override
   String toString() => '$runtimeType{$offset, $style, $transform}';
@@ -99,18 +103,18 @@ class _Elements {
       if (warningsAsErrors) {
         throw UnsupportedError(errorMessage);
       }
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: UnsupportedError(errorMessage),
-        informationCollector: () => <DiagnosticsNode>[
-          ErrorDescription(
-              'The root <svg> element contained an unsupported nested SVG element.'),
-          if (parserState._key != null) ErrorDescription(''),
-          if (parserState._key != null)
-            DiagnosticsProperty<String>('Picture key', parserState._key),
-        ],
-        library: 'SVG',
-        context: ErrorDescription('in _Element.svg'),
-      ));
+      // FlutterError.reportError(FlutterErrorDetails(
+      //   exception: UnsupportedError(errorMessage),
+      //   informationCollector: () => <DiagnosticsNode>[
+      //     ErrorDescription(
+      //         'The root <svg> element contained an unsupported nested SVG element.'),
+      //     if (parserState._key != null) ErrorDescription(''),
+      //     if (parserState._key != null)
+      //       DiagnosticsProperty<String>('Picture key', parserState._key),
+      //   ],
+      //   library: 'SVG',
+      //   context: ErrorDescription('in _Element.svg'),
+      // ));
 
       parserState._parentDrawables.addLast(
         _SvgGroupTuple(
@@ -152,7 +156,7 @@ class _Elements {
       <Drawable>[],
       parserState.parseStyle(parserState.rootBounds, parent.style,
           currentColor: color),
-      transform: parseTransform(parserState.attribute('transform'))?.storage,
+      transform: parseTransform(parserState.attribute('transform')),
       color: color,
     );
     parent.children!.add(group);
@@ -175,7 +179,7 @@ class _Elements {
         parent.style,
         currentColor: color,
       ),
-      transform: parseTransform(parserState.attribute('transform'))?.storage,
+      transform: parseTransform(parserState.attribute('transform')),
       color: color,
     );
     parserState.addGroup(parserState._currentStartElement!, group);
@@ -195,13 +199,13 @@ class _Elements {
       currentColor: parent.color,
     );
 
-    final Matrix4 transform =
+    final AffineMatrix transform =
         parseTransform(parserState.attribute('transform')) ??
-            Matrix4.identity();
-    transform.translate(
+            AffineMatrix.identity;
+    transform.translated(
       parserState.parseDoubleWithUnits(
         parserState.attribute('x', def: '0'),
-      ),
+      )!,
       parserState.parseDoubleWithUnits(
         parserState.attribute('y', def: '0'),
       )!,
@@ -213,7 +217,7 @@ class _Elements {
       parserState.attribute('id', def: ''),
       <Drawable>[ref.mergeStyle(style)],
       style,
-      transform: transform.storage,
+      transform: transform,
     );
     parserState.checkForIri(group);
 
@@ -273,7 +277,7 @@ class _Elements {
     final String? rawFy = parserState.attribute('fy', def: rawCy);
     final TileMode spreadMethod = parserState.parseTileMode();
     final String id = parserState.buildUrlIri();
-    final Matrix4? originalTransform = parseTransform(
+    final AffineMatrix? originalTransform = parseTransform(
       parserState.attribute('gradientTransform', def: null),
     );
 
@@ -342,7 +346,7 @@ class _Elements {
             ? GradientUnitMode.objectBoundingBox
             : GradientUnitMode.userSpaceOnUse,
         spreadMethod: spreadMethod,
-        transform: originalTransform?.storage,
+        transform: originalTransform,
       ),
     );
     return null;
@@ -360,7 +364,7 @@ class _Elements {
     final String y1 = parserState.attribute('y1', def: '0%')!;
     final String y2 = parserState.attribute('y2', def: '0%')!;
     final String id = parserState.buildUrlIri();
-    final Matrix4? originalTransform = parseTransform(
+    final AffineMatrix? originalTransform = parseTransform(
       parserState.attribute('gradientTransform'),
     );
     final TileMode spreadMethod = parserState.parseTileMode();
@@ -430,7 +434,7 @@ class _Elements {
         unitMode: isObjectBoundingBox
             ? GradientUnitMode.objectBoundingBox
             : GradientUnitMode.userSpaceOnUse,
-        transform: originalTransform?.storage,
+        transform: originalTransform,
       ),
     );
 
@@ -441,8 +445,8 @@ class _Elements {
       SvgParserState parserState, bool warningsAsErrors) {
     final String id = parserState.buildUrlIri();
 
-    final List<DrawPath> paths = <DrawPath>[];
-    DrawPath? currentPath;
+    final List<Path> paths = <Path>[];
+    PathBuilder? currentPath;
     for (XmlEvent event in parserState._readSubtree()) {
       if (event is XmlEndElementEvent) {
         continue;
@@ -451,19 +455,19 @@ class _Elements {
         final _PathFunc? pathFn = _svgPathFuncs[event.name];
 
         if (pathFn != null) {
-          final Path nextPath = parserState.applyTransformIfNeeded(
-            pathFn(parserState),
-          )!;
+          final PathBuilder nextPath = PathBuilder.fromPath(
+            parserState.applyTransformIfNeeded(pathFn(parserState))!,
+          );
           nextPath.fillType = parserState.parseFillRule('clip-rule')!;
           if (currentPath != null &&
               nextPath.fillType != currentPath.fillType) {
             currentPath = nextPath;
-            paths.add(currentPath);
+            paths.add(currentPath.toPath());
           } else if (currentPath == null) {
             currentPath = nextPath;
-            paths.add(currentPath);
+            paths.add(currentPath.toPath());
           } else {
-            currentPath.addPath(nextPath, Offset.zero);
+            currentPath.addPath(nextPath.toPath());
           }
         } else if (event.name == 'use') {
           final String? xlinkHref = getHrefAttribute(parserState.attributes);
@@ -485,18 +489,18 @@ class _Elements {
           if (warningsAsErrors) {
             throw UnsupportedError(errorMessage);
           }
-          FlutterError.reportError(FlutterErrorDetails(
-            exception: UnsupportedError(errorMessage),
-            informationCollector: () => <DiagnosticsNode>[
-              ErrorDescription(
-                  'The <clipPath> element contained an unsupported child ${event.name}'),
-              if (parserState._key != null) ErrorDescription(''),
-              if (parserState._key != null)
-                DiagnosticsProperty<String>('Picture key', parserState._key),
-            ],
-            library: 'SVG',
-            context: ErrorDescription('in _Element.clipPath'),
-          ));
+          // FlutterError.reportError(FlutterErrorDetails(
+          //   exception: UnsupportedError(errorMessage),
+          //   informationCollector: () => <DiagnosticsNode>[
+          //     ErrorDescription(
+          //         'The <clipPath> element contained an unsupported child ${event.name}'),
+          //     if (parserState._key != null) ErrorDescription(''),
+          //     if (parserState._key != null)
+          //       DiagnosticsProperty<String>('Picture key', parserState._key),
+          //   ],
+          //   library: 'SVG',
+          //   context: ErrorDescription('in _Element.clipPath'),
+          // ));
         }
       }
     }
@@ -506,47 +510,49 @@ class _Elements {
 
   static Future<void> image(
       SvgParserState parserState, bool warningsAsErrors) async {
-    final String? href = getHrefAttribute(parserState.attributes);
-    if (href == null) {
-      return;
-    }
-    final Offset offset = Offset(
-      parserState.parseDoubleWithUnits(
-        parserState.attribute('x', def: '0'),
-      )!,
-      parserState.parseDoubleWithUnits(
-        parserState.attribute('y', def: '0'),
-      )!,
-    );
-    final Size size = Size(
-      parserState.parseDoubleWithUnits(
-        parserState.attribute('width', def: '0'),
-      )!,
-      parserState.parseDoubleWithUnits(
-        parserState.attribute('height', def: '0'),
-      )!,
-    );
-    final Image image = await resolveImage(href);
-    final DrawableParent parent = parserState._parentDrawables.last.drawable!;
-    final DrawableStyle? parentStyle = parent.style;
-    final DrawableRasterImage drawable = DrawableRasterImage(
-      parserState.attribute('id', def: ''),
-      image,
-      offset,
-      parserState.parseStyle(parserState.rootBounds, parentStyle,
-          currentColor: parent.color),
-      size: size,
-      transform: parseTransform(parserState.attribute('transform'))?.storage,
-    );
-    parserState.checkForIri(drawable);
+    throw 'Unsupported';
+    // final String? href = getHrefAttribute(parserState.attributes);
+    // if (href == null) {
+    //   return;
+    // }
+    // final Offset offset = Offset(
+    //   parserState.parseDoubleWithUnits(
+    //     parserState.attribute('x', def: '0'),
+    //   )!,
+    //   parserState.parseDoubleWithUnits(
+    //     parserState.attribute('y', def: '0'),
+    //   )!,
+    // );
+    // final Size size = Size(
+    //   parserState.parseDoubleWithUnits(
+    //     parserState.attribute('width', def: '0'),
+    //   )!,
+    //   parserState.parseDoubleWithUnits(
+    //     parserState.attribute('height', def: '0'),
+    //   )!,
+    // );
+    // // final Image image = await resolveImage(href);
+    // final DrawableParent parent = parserState._parentDrawables.last.drawable!;
+    // final DrawableStyle? parentStyle = parent.style;
+    // final DrawableRasterImage drawable = DrawableRasterImage(
+    //   parserState.attribute('id', def: ''),
+    //   image,
+    //   offset,
+    //   parserState.parseStyle(parserState.rootBounds, parentStyle,
+    //       currentColor: parent.color),
+    //   size: size,
+    //   transform: parseTransform(parserState.attribute('transform'))?.storage,
+    // );
+    // parserState.checkForIri(drawable);
 
-    parserState.currentGroup!.children!.add(drawable);
+    // parserState.currentGroup!.children!.add(drawable);
   }
 
   static Future<void> text(
     SvgParserState parserState,
     bool warningsAsErrors,
   ) async {
+    throw 'unsupported';
     assert(parserState != null); // ignore: unnecessary_null_comparison
     assert(parserState.currentGroup != null);
     if (parserState._currentStartElement!.isSelfClosing) {
@@ -566,30 +572,30 @@ class _Elements {
       }
       assert(textInfos.isNotEmpty);
       final _TextInfo lastTextInfo = textInfos.last;
-      final Paragraph fill = createParagraph(
-        value,
-        lastTextInfo.style,
-        lastTextInfo.style.fill,
-      );
-      final Paragraph stroke = createParagraph(
-        value,
-        lastTextInfo.style,
-        DrawablePaint.isEmpty(lastTextInfo.style.stroke)
-            ? transparentStroke
-            : lastTextInfo.style.stroke,
-      );
-      parserState.currentGroup!.children!.add(
-        DrawableText(
-          parserState.attribute('id', def: ''),
-          fill,
-          stroke,
-          lastTextInfo.offset,
-          lastTextInfo.style.textStyle!.anchor ??
-              DrawableTextAnchorPosition.start,
-          transform: lastTextInfo.transform?.storage,
-        ),
-      );
-      lastTextWidth = fill.maxIntrinsicWidth;
+      // final Paragraph fill = createParagraph(
+      //   value,
+      //   lastTextInfo.style,
+      //   lastTextInfo.style.fill,
+      // );
+      // final Paragraph stroke = createParagraph(
+      //   value,
+      //   lastTextInfo.style,
+      //   DrawablePaint.isEmpty(lastTextInfo.style.stroke)
+      //       ? transparentStroke
+      //       : lastTextInfo.style.stroke,
+      // );
+      // parserState.currentGroup!.children!.add(
+      //   DrawableText(
+      //     parserState.attribute('id', def: ''),
+      //     fill,
+      //     stroke,
+      //     lastTextInfo.offset,
+      //     lastTextInfo.style.textStyle!.anchor ??
+      //         DrawableTextAnchorPosition.start,
+      //     transform: lastTextInfo.transform?.storage,
+      //   ),
+      // );
+      // lastTextWidth = fill.maxIntrinsicWidth;
     }
 
     void _processStartElement(XmlStartElementEvent event) {
@@ -601,7 +607,7 @@ class _Elements {
         parserState,
         lastTextInfo?.offset.translate(lastTextWidth, 0),
       );
-      Matrix4? transform = parseTransform(parserState.attribute('transform'));
+      AffineMatrix? transform = parseTransform(parserState.attribute('transform'));
       if (lastTextInfo?.transform != null) {
         if (transform == null) {
           transform = lastTextInfo!.transform;
@@ -661,8 +667,8 @@ class _Paths {
     final double r = parserState.parseDoubleWithUnits(
       parserState.attribute('r', def: '0'),
     )!;
-    final Rect oval = Rect.fromCircle(center: Offset(cx, cy), radius: r);
-    return Path()..addOval(oval);
+    final Rect oval = Rect.fromCircle(cx, cy, r);
+    return (PathBuilder()..addOval(oval)).toPath();
   }
 
   static Path path(SvgParserState parserState) {
@@ -683,7 +689,6 @@ class _Paths {
     final double h = parserState.parseDoubleWithUnits(
       parserState.attribute('height', def: '0'),
     )!;
-    final Rect rect = Rect.fromLTWH(x, y, w, h);
     String? rxRaw = parserState.attribute('rx');
     String? ryRaw = parserState.attribute('ry');
     rxRaw ??= ryRaw;
@@ -693,10 +698,12 @@ class _Paths {
       final double rx = parserState.parseDoubleWithUnits(rxRaw)!;
       final double ry = parserState.parseDoubleWithUnits(ryRaw)!;
 
-      return Path()..addRRect(RRect.fromRectXY(rect, rx, ry));
+      return (PathBuilder()
+            ..addRRect(RRect.fromLTRBXY(x, y, w - x, h - y, rx, ry)))
+          .toPath();
     }
 
-    return Path()..addRect(rect);
+    return (PathBuilder()..addRect(Rect.fromLTWH(x, y, w, h))).toPath();
   }
 
   static Path? polygon(SvgParserState parserState) {
@@ -732,7 +739,7 @@ class _Paths {
     )!;
 
     final Rect r = Rect.fromLTWH(cx - rx, cy - ry, rx * 2, ry * 2);
-    return Path()..addOval(r);
+    return (PathBuilder()..addOval(r)).toPath();
   }
 
   static Path line(SvgParserState parserState) {
@@ -749,9 +756,10 @@ class _Paths {
       parserState.attribute('y2', def: '0'),
     )!;
 
-    return Path()
-      ..moveTo(x1, y1)
-      ..lineTo(x2, y2);
+    return (PathBuilder()
+          ..moveTo(x1, y1)
+          ..lineTo(x2, y2))
+        .toPath();
   }
 }
 
@@ -772,7 +780,7 @@ class SvgParserState {
     this.theme,
     this._key,
     this._warningsAsErrors,
-  )   
+  )
   // ignore: unnecessary_null_comparison
   : assert(events != null),
         _eventIterator = events.iterator;
@@ -935,7 +943,7 @@ class SvgParserState {
         defaultFillColor: colorBlack,
         currentColor: parent.color,
       ),
-      transform: parseTransform(getAttribute(attributes, 'transform'))?.storage,
+      transform: parseTransform(getAttribute(attributes, 'transform')),
     );
     checkForIri(drawable);
     parent.children!.add(drawable);
@@ -981,23 +989,23 @@ class SvgParserState {
       throw UnimplementedError(errorMessage);
     }
     if (event.name == 'style') {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: UnimplementedError(
-            'The <style> element is not implemented in this library.'),
-        informationCollector: () => <DiagnosticsNode>[
-          ErrorDescription(
-              'Style elements are not supported by this library and the requested SVG may not '
-              'render as intended.'),
-          ErrorHint(
-              'If possible, ensure the SVG uses inline styles and/or attributes (which are '
-              'supported), or use a preprocessing utility such as svgcleaner to inline the '
-              'styles for you.'),
-          ErrorDescription(''),
-          DiagnosticsProperty<String>('Picture key', _key),
-        ],
-        library: 'SVG',
-        context: ErrorDescription('in parseSvgElement'),
-      ));
+      // FlutterError.reportError(FlutterErrorDetails(
+      //   exception: UnimplementedError(
+      //       'The <style> element is not implemented in this library.'),
+      //   informationCollector: () => <DiagnosticsNode>[
+      //     ErrorDescription(
+      //         'Style elements are not supported by this library and the requested SVG may not '
+      //         'render as intended.'),
+      //     ErrorHint(
+      //         'If possible, ensure the SVG uses inline styles and/or attributes (which are '
+      //         'supported), or use a preprocessing utility such as svgcleaner to inline the '
+      //         'styles for you.'),
+      //     ErrorDescription(''),
+      //     DiagnosticsProperty<String>('Picture key', _key),
+      //   ],
+      //   library: 'SVG',
+      //   context: ErrorDescription('in parseSvgElement'),
+      // ));
     } else if (_unhandledElements.add(event.name)) {
       print(errorMessage);
     }
@@ -1412,19 +1420,20 @@ class SvgParserState {
   }
 
   /// Applies a transform to a path if the [attributes] contain a `transform`.
-  DrawPath? applyTransformIfNeeded(DrawPath? path) {
-    final Matrix4? transform =
+  Path? applyTransformIfNeeded(Path? path) {
+    final AffineMatrix? transform =
         parseTransform(getAttribute(attributes, 'transform', def: null));
 
     if (transform != null) {
-      return path!.transform(transform.storage);
+      // TODO
+      return path?.transformed(transform);
     } else {
       return path;
     }
   }
 
   /// Parses a `clipPath` element into a list of [Path]s.
-  List<DrawPath>? parseClipPath() {
+  List<Path>? parseClipPath() {
     final String? rawClipAttribute = getAttribute(attributes, 'clip-path');
     if (rawClipAttribute != '') {
       return _definitions.getClipPath(rawClipAttribute!);

@@ -6,7 +6,9 @@ import 'dart:async';
 import 'dart:ui' show Picture, Rect, Size;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/rendering.dart' hide Color;
+
+import 'paint.dart';
 
 /// The signature of a method that listens for errors on picture stream resolution.
 typedef PictureErrorListener = void Function(

@@ -1174,6 +1174,7 @@ class DrawableShape implements DrawableStyleable {
       if (paints.add(fillPaint)) {
         fillPaint.write(null);
       }
+      path.paintId = fillPaint.hashCode;
     }
     if (strokePaint != null) {
       if (paints.add(strokePaint)) {

@@ -3,10 +3,14 @@
 // found in the LICENSE file.
 
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'data.dart';
 
 
 enum PathCommandType {
@@ -39,12 +43,26 @@ class PaintingCodec extends StandardMessageCodec {
     }
   }
 
+
   Object? _readPaint(ReadBuffer buffer) {
-    final int color = buffer.getInt32();
+    final int color = buffer.getUint32();
     final int strokeCap = buffer.getInt32();
     final int strokeJoin = buffer.getInt32();
+    final int blendMode = buffer.getInt32();
+    final double strokeMiterLimit = buffer.getFloat64();
+    final double strokeWidth = buffer.getFloat64();
+    final int paintStyle = buffer.getInt32();
     final int id = buffer.getInt32();
-    _listener?.onPaintObject(color, strokeCap, strokeJoin, id);
+    _listener?.onPaintObject(
+      color,
+      strokeCap,
+      strokeJoin,
+      blendMode,
+      strokeMiterLimit,
+      strokeWidth,
+      paintStyle,
+      id,
+    );
     return null;
   }
 
@@ -88,6 +106,10 @@ abstract class PaintingCodecListener {
     int color,
     int strokeCap,
     int strokeJoin,
+    int blendMode,
+    double strokeMiterLimit,
+    double strokeWidth,
+    int paintStyle,
     int id,
   );
 
@@ -143,31 +165,47 @@ class FlutterPaintCodecListener extends PaintingCodecListener {
   @override
   void onDrawPathStop(int fillType, int paint) {
     currentPath!.fillType = PathFillType.values[fillType];
-
-    canvas.drawPath(currentPath!, _paints[paint] ?? Paint());
+    //canvas.drawPath(currentPath!, _paints[paint]!);
   }
 
   @override
-  void onPaintObject(int color, int strokeCap, int strokeJoin, int id) {
+  void onPaintObject(
+    int color,
+    int strokeCap,
+    int strokeJoin,
+    int blendMode,
+    double strokeMiterLimit,
+    double strokeWidth,
+    int paintStyle,
+    int id,
+  ) {
     _paints[id] = Paint()
       ..color = Color(color)
       ..strokeCap = StrokeCap.values[strokeCap]
-      ..strokeJoin = StrokeJoin.values[strokeJoin];
+      ..strokeJoin = StrokeJoin.values[strokeJoin]
+      ..blendMode = BlendMode.values[blendMode]
+      ..strokeMiterLimit = strokeMiterLimit
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.values[paintStyle];
   }
 }
 
 
-void main() {
-  var bytes = File('binary.dat').readAsBytesSync();
-
+Future<void> main() async {
+  var bytes = Uint8List.fromList(data);
   window.onBeginFrame = (_) {
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
     final listener = FlutterPaintCodecListener(canvas);
     var codec = PaintingCodec(listener);
+    canvas.drawRect(Rect.fromLTWH(0, 0, 1000, 1000),Paint()..color = Colors.white);
+    canvas.translate(200, 200);
     try {
+      var sw = Stopwatch()..start();
       codec.decodeMessage(bytes.buffer.asByteData());
-    } on FormatException {
+      print(sw.elapsedMilliseconds);
+    } on FormatException catch (err) {
+      print(err);
       // This is expected.
     }
 

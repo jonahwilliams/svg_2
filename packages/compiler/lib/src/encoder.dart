@@ -47,7 +47,6 @@ class PaintingCodec extends StandardMessageCodec {
   PaintingCodecListener? _listener;
 
   Object? readValueOfType(int type, ReadBuffer buffer) {
-    print('write $type');
     switch (type) {
       case _paintTag:
         return _readPaint(buffer);
@@ -71,18 +70,35 @@ class PaintingCodec extends StandardMessageCodec {
 
   void _writePaint(WriteBuffer buffer, Paint paint) {
     buffer.putUint8(_paintTag);
-    buffer.putInt32(paint.color.value);
+    buffer.putUint32(paint.color.value);
     buffer.putInt32(paint.strokeCap.index);
     buffer.putInt32(paint.strokeJoin.index);
-    buffer.putInt32(paint.hashCode); // TODO add ID.
+    buffer.putInt32(paint.blendMode.index);
+    buffer.putFloat64(paint.strokeMiterLimit);
+    buffer.putFloat64(paint.strokeWidth);
+    buffer.putInt32(paint.style.index);
+    buffer.putInt32(paint.hashCode); // TODO add real ID.
   }
 
   Object? _readPaint(ReadBuffer buffer) {
-    final int color = buffer.getInt32();
+    final int color = buffer.getUint32();
     final int strokeCap = buffer.getInt32();
     final int strokeJoin = buffer.getInt32();
+    final int blendMode = buffer.getInt32();
+    final double strokeMiterLimit = buffer.getFloat64();
+    final double strokeWidth = buffer.getFloat64();
+    final int paintStyle = buffer.getInt32();
     final int id = buffer.getInt32();
-    _listener?.onPaintObject(color, strokeCap, strokeJoin, id);
+    _listener?.onPaintObject(
+      color,
+      strokeCap,
+      strokeJoin,
+      blendMode,
+      strokeMiterLimit,
+      strokeWidth,
+      paintStyle,
+      id,
+    );
     return null;
   }
 
@@ -162,6 +178,10 @@ abstract class PaintingCodecListener {
     int color,
     int strokeCap,
     int strokeJoin,
+    int blendMode,
+    double strokeMiterLimit,
+    double strokeWidth,
+    int paintStyle,
     int id,
   );
 

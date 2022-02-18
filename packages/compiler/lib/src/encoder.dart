@@ -5,6 +5,7 @@ import 'package:typed_data/typed_buffers.dart' show Uint8Buffer;
 
 import 'parser/paint.dart';
 import 'parser/path.dart';
+import 'parser/vector_drawable.dart';
 
 /// Rough outline of format. Except that all strings are replaced with
 /// numbers for smaller format and faster parsing.
@@ -43,6 +44,12 @@ import 'parser/path.dart';
 class PaintingCodec extends StandardMessageCodec {
   static const int _pathTag = 27;
   static const int _paintTag = 28;
+  static const int _drawCommandTag = 29;
+
+  final Map<Paint, int> _paintIds = {};
+  final Map<Path, int> _pathIds = {};
+  int _currentPaintId = 0;
+  int _currentPathId = 0;
 
   PaintingCodecListener? _listener;
 
@@ -52,6 +59,8 @@ class PaintingCodec extends StandardMessageCodec {
         return _readPaint(buffer);
       case _pathTag:
         return _readPath(buffer);
+      case _drawCommandTag:
+        return _readDrawCommand(buffer);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -63,6 +72,8 @@ class PaintingCodec extends StandardMessageCodec {
       _writePaint(buffer, value);
     } else if (value is Path) {
       _writePath(buffer, value);
+    } else if (value is DrawCommand) {
+      _writeDrawCommand(buffer, value);
     } else {
       super.writeValue(buffer, value);
     }
@@ -77,7 +88,10 @@ class PaintingCodec extends StandardMessageCodec {
     buffer.putFloat64(paint.strokeMiterLimit);
     buffer.putFloat64(paint.strokeWidth);
     buffer.putInt32(paint.style.index);
-    buffer.putInt32(paint.hashCode); // TODO add real ID.
+
+    _currentPaintId += 1;
+    _paintIds[paint] = _currentPaintId;
+    buffer.putInt32(_currentPaintId);
   }
 
   Object? _readPaint(ReadBuffer buffer) {
@@ -104,8 +118,12 @@ class PaintingCodec extends StandardMessageCodec {
 
   void _writePath(WriteBuffer buffer, Path path) {
     buffer.putUint8(_pathTag);
+
+    _currentPathId += 1;
+    _pathIds[path] = _currentPathId;
+    buffer.putInt32(_currentPathId);
+
     buffer.putInt32(path.fillType.index);
-    buffer.putInt32(path.paintId);
     var commands = path.commands.toList();
     buffer.putInt32(commands.length);
     for (var i = 0; i < commands.length; i += 1) {
@@ -139,22 +157,22 @@ class PaintingCodec extends StandardMessageCodec {
   }
 
   Object? _readPath(ReadBuffer buffer) {
+    final int id = buffer.getInt32();
     final int fillType = buffer.getInt32();
-    final int paint = buffer.getInt32();
     final int commandLength = buffer.getInt32();
-    _listener?.onDrawPathStart();
+    _listener?.onPathStart(id, fillType);
 
     for (var i = 0; i < commandLength; i++) {
       final int pathType = buffer.getUint8();
       if (pathType == PathCommandType.move.index) {
         var controlPoints = buffer.getFloat32List(2);
-        _listener?.onDrawPathMoveTo(controlPoints[0], controlPoints[1]);
+        _listener?.onPathMoveTo(controlPoints[0], controlPoints[1]);
       } else if (pathType == PathCommandType.line.index) {
         var controlPoints = buffer.getFloat32List(2);
-        _listener?.onDrawPathLineTo(controlPoints[0], controlPoints[1]);
+        _listener?.onPathLineTo(controlPoints[0], controlPoints[1]);
       } else if (pathType == PathCommandType.cubic.index) {
         var controlPoints = buffer.getFloat32List(6);
-        _listener?.onDrawPathCubicTo(
+        _listener?.onPathCubicTo(
           controlPoints[0],
           controlPoints[1],
           controlPoints[2],
@@ -163,12 +181,27 @@ class PaintingCodec extends StandardMessageCodec {
           controlPoints[5],
         );
       } else if (pathType == PathCommandType.close.index) {
-        _listener?.onDrawPathClose();
+        _listener?.onPathClose();
       } else {
         throw UnsupportedError(pathType.toString());
       }
     }
-    _listener?.onDrawPathStop(fillType, paint);
+    _listener?.onPathFinished();
+    return null;
+  }
+
+  void _writeDrawCommand(WriteBuffer buffer, DrawCommand command) {
+    buffer.putUint8(_drawCommandTag);
+    assert(_pathIds.containsKey(command.path), 'Expected to find ${command.path.hashCode}, have ${_pathIds.keys.map((p) => p.hashCode).toList()}');
+    assert(_paintIds.containsKey(command.paint));
+    buffer.putInt32(_pathIds[command.path]!);
+    buffer.putInt32(_paintIds[command.paint]!);
+  }
+
+  Object? _readDrawCommand(ReadBuffer buffer) {
+    final int pathId = buffer.getInt32();
+    final int paintId = buffer.getInt32();
+    _listener?.onDrawCommand(pathId, paintId);
     return null;
   }
 }
@@ -185,19 +218,21 @@ abstract class PaintingCodecListener {
     int id,
   );
 
-  void onDrawPathStart();
+  void onPathStart(int id, int fillType);
 
-  void onDrawPathMoveTo(double x, double y);
+  void onPathMoveTo(double x, double y);
 
-  void onDrawPathLineTo(double x, double y);
+  void onPathLineTo(double x, double y);
 
-  void onDrawPathCubicTo(
+  void onPathCubicTo(
       double x1, double y1, double x2, double y2, double x3, double y3);
 
-  void onDrawPathClose();
+  void onPathClose();
 
-  void onDrawPathStop(
-    int fillType,
+  void onPathFinished();
+
+  void onDrawCommand(
+    int path,
     int paint,
   );
 }

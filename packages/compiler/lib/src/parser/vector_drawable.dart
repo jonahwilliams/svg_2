@@ -8,6 +8,21 @@ import 'package:vector_math/vector_math_64.dart';
 import 'path.dart';
 import 'paint.dart';
 
+@immutable
+class DrawCommand {
+  DrawCommand(this.path, this.paint);
+  final Path path;
+  final Paint paint;
+
+  @override
+  int get hashCode => Object.hash(path, paint);
+
+  @override
+  bool operator ==(Object? other) {
+    return other is DrawCommand && other.path == path && other.paint == paint;
+  }
+}
+
 /// ui.Paint used in masks.
 // final ui.Paint _grayscaleDstInPaint = ui.Paint()
 //   ..blendMode = ui.BlendMode.dstIn
@@ -31,7 +46,8 @@ abstract class Drawable {
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` specify the area to draw in.
-  void write(Set<Paint> paints, List<Path> paths) {}
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+      AffineMatrix currentTransform) {}
 }
 
 /// A [Drawable] that can have a [DrawableStyle] applied to it.
@@ -539,12 +555,12 @@ class DrawableDefinitionServer {
     _gradients[id] = gradient;
   }
 
-  /// Get a [List<Path>] of clip paths by [id].
+  /// Get a [Set<Path>] of clip paths by [id].
   List<Path>? getClipPath(String id) {
     return _clipPaths[id];
   }
 
-  /// Add a [List<Path>] of clip paths by [id].
+  /// Add a [Set<Path>] of clip paths by [id].
   void addClipPath(String id, List<Path> paths) {
     _clipPaths[id] = paths;
   }
@@ -824,7 +840,11 @@ class DrawableRoot implements DrawableParent {
   ///
   /// The `bounds` is not used.
   @override
-  void write(Set<Paint> paints, List<Path> paths) {
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+      AffineMatrix currentTransform) {
+    if (transform != null) {
+      currentTransform = currentTransform.multiplied(transform!);
+    }
     dynamic canvas;
     if (!hasDrawableContent) {
       return;
@@ -839,7 +859,7 @@ class DrawableRoot implements DrawableParent {
       canvas.translate(viewport.viewBoxOffset.x, viewport.viewBoxOffset.y);
     }
     for (Drawable child in children) {
-      child.write(paints, paths);
+      child.write(paints, paths, commands, currentTransform);
     }
 
     if (transform != null) {
@@ -944,9 +964,13 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   bool get hasDrawableContent => children != null && children!.isNotEmpty;
 
   @override
-  void write(Set<Paint> paints, List<Path> paths) {
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+      AffineMatrix currentTransform) {
+    if (transform != null) {
+      currentTransform = currentTransform.multiplied(transform!);
+    }
     for (final child in children ?? []) {
-      child.write(paints, paths);
+      child.write(paints, paths, commands, currentTransform);
     }
 
     // dynamic canvas;
@@ -1165,22 +1189,31 @@ class DrawableShape implements DrawableStyleable {
   bool get hasDrawableContent => bounds.width + bounds.height > 0;
 
   @override
-  void write(Set<Paint> paints, List<Path> paths) {
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+      AffineMatrix currentTransform) {
+    if (transform != null) {
+      currentTransform = currentTransform.multiplied(transform!);
+    }
     final Paint? fillPaint = style.fill?.toPaint();
     final Paint? strokePaint = style.stroke?.toPaint();
-    path.write();
-    paths.add(path);
+    final Path transformedPath = path.transformed(currentTransform);
+
+    paths.add(transformedPath);
     if (fillPaint != null) {
       if (paints.add(fillPaint)) {
-        fillPaint.write(null);
+        // fillPaint.write(null);
       }
-      path.paintId = fillPaint.hashCode;
+      // print(
+      //     'canvas.drawPath(path${transformedPath.hashCode}, paint${fillPaint.hashCode});');
+      commands.add(DrawCommand(transformedPath, fillPaint));
     }
     if (strokePaint != null) {
       if (paints.add(strokePaint)) {
-        strokePaint.write(null);
+        // strokePaint.write(null);
       }
-      path.paintId = strokePaint.hashCode;
+      // print(
+      //     'canvas.drawPath(path${transformedPath.hashCode}, paint${strokePaint.hashCode});');
+      commands.add(DrawCommand(transformedPath, strokePaint));
     }
     return;
     // if (!hasDrawableContent) {

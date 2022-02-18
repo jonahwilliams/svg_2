@@ -6,7 +6,9 @@ import 'dart:io';
 
 import 'package:compiler/src/parser/paint.dart';
 import 'package:compiler/src/parser/parser_state.dart';
+import 'package:compiler/src/parser/path.dart';
 import 'package:compiler/src/parser/picture_stream.dart';
+import 'package:compiler/src/parser/vector_drawable.dart';
 import 'package:xml/xml_events.dart';
 
 import 'src/encoder.dart';
@@ -23,8 +25,9 @@ void main(List<String> args) async {
   );
   final root = await state.parse();
   final Set<Paint> paints = <Paint>{};
-  final List<Path> paths = [];
-  root.write(paints, paths);
+  final Set<Path> paths = <Path>{};
+  final List<DrawCommand> commands = <DrawCommand>[];
+  root.write(paints, paths, commands, AffineMatrix.identity);
 //   print('''
 // import 'dart:ui';
 
@@ -51,10 +54,19 @@ void main(List<String> args) async {
 //   root.write(paints);
 //   print('}');
   var codec = PaintingCodec();
+
+  assert(() {
+    for(final command in commands) {
+      assert(paths.contains(command.path), 'Did not get ${command.path}');
+      assert(paints.contains(command.paint));
+    }
+    return true;
+  }());
   var result  = codec.encodeMessage([
     0,
     paints.toList(),
-    paths,
+    paths.toList(),
+    commands,
   ]);
 
   output.writeAsBytesSync(result!.buffer.asUint8List());

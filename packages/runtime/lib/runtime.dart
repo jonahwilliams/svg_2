@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -11,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'data.dart';
-
 
 enum PathCommandType {
   oval,
@@ -23,26 +21,28 @@ enum PathCommandType {
   close,
 }
 
-
 class PaintingCodec extends StandardMessageCodec {
   PaintingCodec(this._listener);
 
   static const int _pathTag = 27;
   static const int _paintTag = 28;
+  static const int _drawCommandTag = 29;
 
   PaintingCodecListener? _listener;
 
   Object? readValueOfType(int type, ReadBuffer buffer) {
+    print(type);
     switch (type) {
       case _paintTag:
         return _readPaint(buffer);
       case _pathTag:
         return _readPath(buffer);
+      case _drawCommandTag:
+        return _readDrawCommand(buffer);
       default:
         return super.readValueOfType(type, buffer);
     }
   }
-
 
   Object? _readPaint(ReadBuffer buffer) {
     final int color = buffer.getUint32();
@@ -67,22 +67,26 @@ class PaintingCodec extends StandardMessageCodec {
   }
 
   Object? _readPath(ReadBuffer buffer) {
+    final int id = buffer.getInt32();
     final int fillType = buffer.getInt32();
-    final int paint = buffer.getInt32();
     final int commandLength = buffer.getInt32();
-    _listener?.onDrawPathStart();
+    print('path $id has $commandLength commands');
+    _listener?.onPathStart(id, fillType);
 
     for (var i = 0; i < commandLength; i++) {
       final int pathType = buffer.getUint8();
       if (pathType == PathCommandType.move.index) {
         var controlPoints = buffer.getFloat32List(2);
-        _listener?.onDrawPathMoveTo(controlPoints[0], controlPoints[1]);
+        print('moveTo $controlPoints');
+        _listener?.onPathMoveTo(controlPoints[0], controlPoints[1]);
       } else if (pathType == PathCommandType.line.index) {
         var controlPoints = buffer.getFloat32List(2);
-        _listener?.onDrawPathLineTo(controlPoints[0], controlPoints[1]);
+        print('lineTo $controlPoints');
+        _listener?.onPathLineTo(controlPoints[0], controlPoints[1]);
       } else if (pathType == PathCommandType.cubic.index) {
         var controlPoints = buffer.getFloat32List(6);
-        _listener?.onDrawPathCubicTo(
+        print('cubicTo $controlPoints');
+        _listener?.onPathCubicTo(
           controlPoints[0],
           controlPoints[1],
           controlPoints[2],
@@ -91,12 +95,20 @@ class PaintingCodec extends StandardMessageCodec {
           controlPoints[5],
         );
       } else if (pathType == PathCommandType.close.index) {
-        _listener?.onDrawPathClose();
+        print('close');
+        _listener?.onPathClose();
       } else {
         throw UnsupportedError(pathType.toString());
       }
     }
-    _listener?.onDrawPathStop(fillType, paint);
+    _listener?.onPathFinished();
+    return null;
+  }
+
+  Object? _readDrawCommand(ReadBuffer buffer) {
+    final int pathId = buffer.getInt32();
+    final int paintId = buffer.getInt32();
+    _listener?.onDrawCommand(pathId, paintId);
     return null;
   }
 }
@@ -113,19 +125,21 @@ abstract class PaintingCodecListener {
     int id,
   );
 
-  void onDrawPathStart();
+  void onPathStart(int id, int fillType);
 
-  void onDrawPathMoveTo(double x, double y);
+  void onPathMoveTo(double x, double y);
 
-  void onDrawPathLineTo(double x, double y);
+  void onPathLineTo(double x, double y);
 
-  void onDrawPathCubicTo(
+  void onPathCubicTo(
       double x1, double y1, double x2, double y2, double x3, double y3);
 
-  void onDrawPathClose();
+  void onPathClose();
 
-  void onDrawPathStop(
-    int fillType,
+  void onPathFinished();
+
+  void onDrawCommand(
+    int path,
     int paint,
   );
 }
@@ -136,36 +150,43 @@ class FlutterPaintCodecListener extends PaintingCodecListener {
   final Map<int, Paint> _paints = {};
   final Canvas canvas;
   Path? currentPath;
+  final Map<int, Path> _paths = {};
 
   @override
-  void onDrawPathClose() {
+  void onPathClose() {
     currentPath!.close();
   }
 
   @override
-  void onDrawPathCubicTo(double x1, double y1, double x2, double y2, double x3, double y3) {
+  void onPathCubicTo(
+      double x1, double y1, double x2, double y2, double x3, double y3) {
     currentPath!.cubicTo(x1, y1, x2, y2, x3, y3);
   }
 
   @override
-  void onDrawPathLineTo(double x, double y) {
+  void onPathLineTo(double x, double y) {
     currentPath!.lineTo(x, y);
   }
 
   @override
-  void onDrawPathMoveTo(double x, double y) {
+  void onPathMoveTo(double x, double y) {
     currentPath!.moveTo(x, y);
   }
 
   @override
-  void onDrawPathStart() {
-    currentPath = Path();
+  void onPathStart(int id, int fillType) {
+    currentPath = Path()..fillType = PathFillType.values[fillType];
+    _paths[id] = currentPath!;
+  }
+
+  void onPathFinished() {
+    currentPath = null;
   }
 
   @override
-  void onDrawPathStop(int fillType, int paint) {
-    currentPath!.fillType = PathFillType.values[fillType];
-    //canvas.drawPath(currentPath!, _paints[paint]!);
+  void onDrawCommand(int path, int paint) {
+    print('canvas.drawPath($path, $paint)');
+    canvas.drawPath(_paths[path]!, _paints[paint]!);
   }
 
   @override
@@ -190,7 +211,6 @@ class FlutterPaintCodecListener extends PaintingCodecListener {
   }
 }
 
-
 Future<void> main() async {
   var bytes = Uint8List.fromList(data);
   window.onBeginFrame = (_) {
@@ -198,14 +218,16 @@ Future<void> main() async {
     final canvas = Canvas(recorder);
     final listener = FlutterPaintCodecListener(canvas);
     var codec = PaintingCodec(listener);
-    canvas.drawRect(Rect.fromLTWH(0, 0, 1000, 1000),Paint()..color = Colors.white);
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, 1000, 1000), Paint()..color = Colors.white);
     canvas.translate(200, 200);
     try {
       var sw = Stopwatch()..start();
       codec.decodeMessage(bytes.buffer.asByteData());
       print(sw.elapsedMilliseconds);
-    } on FormatException catch (err) {
+    } on FormatException catch (err, s) {
       print(err);
+      print(s);
       // This is expected.
     }
 

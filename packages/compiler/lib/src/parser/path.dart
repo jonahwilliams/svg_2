@@ -389,7 +389,7 @@ class AffineMatrix {
     this.f,
   );
 
-  static const AffineMatrix identity = AffineMatrix(1, 0, 0, 0, 1, 0);
+  static const AffineMatrix identity = AffineMatrix(1, 0, 0, 1, 0, 0);
 
   final double a;
   final double b;
@@ -502,8 +502,8 @@ class AffineMatrix {
 
   @override
   String toString() => '''
-[ $a, $b, $c ]
-[ $d, $e, $f ]
+[ $a, $c, $e ]
+[ $b, $d, $f ]
 [ 0.0, 0.0, 1.0 ]
 ''';
 }

@@ -31,7 +31,7 @@ abstract class Drawable {
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` specify the area to draw in.
-  void write(Set<Paint> paints) {}
+  void write(Set<Paint> paints, AffineMatrix currentTransform) {}
 }
 
 /// A [Drawable] that can have a [DrawableStyle] applied to it.
@@ -824,7 +824,10 @@ class DrawableRoot implements DrawableParent {
   ///
   /// The `bounds` is not used.
   @override
-  void write(Set<Paint> paints) {
+  void write(Set<Paint> paints, AffineMatrix currentTransform) {
+    if (transform != null) {
+      currentTransform = currentTransform.multiplied(transform!);
+    }
     dynamic canvas;
     if (!hasDrawableContent) {
       return;
@@ -839,7 +842,7 @@ class DrawableRoot implements DrawableParent {
       canvas.translate(viewport.viewBoxOffset.x, viewport.viewBoxOffset.y);
     }
     for (Drawable child in children) {
-      child.write(paints);
+      child.write(paints, currentTransform);
     }
 
     if (transform != null) {
@@ -944,9 +947,12 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   bool get hasDrawableContent => children != null && children!.isNotEmpty;
 
   @override
-  void write(Set<Paint> paints) {
+  void write(Set<Paint> paints, AffineMatrix currentTransform) {
+    if (transform != null) {
+      currentTransform = currentTransform.multiplied(transform!);
+    }
     for (final child in children ?? []) {
-      child.write(paints);
+      child.write(paints, currentTransform);
     }
 
     // dynamic canvas;
@@ -1165,23 +1171,32 @@ class DrawableShape implements DrawableStyleable {
   bool get hasDrawableContent => bounds.width + bounds.height > 0;
 
   @override
-  void write(Set<Paint> paints) {
+  void write(Set<Paint> paints, AffineMatrix currentTransform) {
+    if (transform != null) {
+      currentTransform = currentTransform.multiplied(transform!);
+    }
     final Paint? fillPaint = style.fill?.toPaint();
     final Paint? strokePaint = style.stroke?.toPaint();
-    path.write();
+    // print('// ----------- start');
+
+    // path.write();
+    // print(currentTransform);
+    final Path transformedPath = path.transformed(currentTransform);
+    transformedPath.write();
+    // print('// -----------');
     if (fillPaint != null) {
       if (paints.add(fillPaint)) {
         fillPaint.write(null);
       }
       print(
-          'canvas.drawPath(path${path.hashCode}, paint${fillPaint.hashCode});');
+          'canvas.drawPath(path${transformedPath.hashCode}, paint${fillPaint.hashCode});');
     }
     if (strokePaint != null) {
       if (paints.add(strokePaint)) {
         strokePaint.write(null);
       }
       print(
-          'canvas.drawPath(path${path.hashCode}, paint${strokePaint.hashCode});');
+          'canvas.drawPath(path${transformedPath.hashCode}, paint${strokePaint.hashCode});');
     }
     return;
     // if (!hasDrawableContent) {

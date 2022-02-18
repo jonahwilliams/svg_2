@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:compiler/src/parser/paint.dart';
 import 'package:compiler/src/parser/parser_state.dart';
+import 'package:compiler/src/parser/path.dart';
 import 'package:compiler/src/parser/picture_stream.dart';
 import 'package:xml/xml_events.dart';
 
@@ -42,6 +43,6 @@ void main() {
 
 void doDraw(Canvas canvas) {
 ''');
-  root.write(paints);
+  root.write(paints, AffineMatrix.identity);
   print('}');
 }

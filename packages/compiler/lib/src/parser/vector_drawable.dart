@@ -8,6 +8,21 @@ import 'package:vector_math/vector_math_64.dart';
 import 'path.dart';
 import 'paint.dart';
 
+@immutable
+class DrawCommand {
+  DrawCommand(this.path, this.paint);
+  final Path path;
+  final Paint paint;
+
+  @override
+  int get hashCode => Object.hash(path, paint);
+
+  @override
+  bool operator ==(Object? other) {
+    return other is DrawCommand && other.path == path && other.paint == paint;
+  }
+}
+
 /// ui.Paint used in masks.
 // final ui.Paint _grayscaleDstInPaint = ui.Paint()
 //   ..blendMode = ui.BlendMode.dstIn
@@ -31,7 +46,8 @@ abstract class Drawable {
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` specify the area to draw in.
-  void write(Set<Paint> paints, Set<Path> paths, AffineMatrix currentTransform) {}
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+      AffineMatrix currentTransform) {}
 }
 
 /// A [Drawable] that can have a [DrawableStyle] applied to it.
@@ -108,7 +124,7 @@ class DrawableStyle {
   final PathFillType? pathFillType;
 
   /// The clip to apply, if any.
-  final Set<Path>? clipPath;
+  final List<Path>? clipPath;
 
   /// The mask to apply, if any.
   final DrawableStyleable? mask;
@@ -134,7 +150,7 @@ class DrawableStyle {
     // DrawableTextStyle? textStyle,
     PathFillType? pathFillType,
     double? groupOpacity,
-    Set<Path>? clipPath,
+    List<Path>? clipPath,
     DrawableStyleable? mask,
     BlendMode? blendMode,
   }) {
@@ -499,7 +515,7 @@ enum DrawableTextAnchorPosition {
 /// Contains reusable drawing elements that can be referenced by a String ID.
 class DrawableDefinitionServer {
   final Map<String, DrawableGradient> _gradients = <String, DrawableGradient>{};
-  final Map<String, Set<Path>> _clipPaths = <String, Set<Path>>{};
+  final Map<String, List<Path>> _clipPaths = <String, List<Path>>{};
   final Map<String, DrawableStyleable> _drawables =
       <String, DrawableStyleable>{};
 
@@ -540,12 +556,12 @@ class DrawableDefinitionServer {
   }
 
   /// Get a [Set<Path>] of clip paths by [id].
-  Set<Path>? getClipPath(String id) {
+  List<Path>? getClipPath(String id) {
     return _clipPaths[id];
   }
 
   /// Add a [Set<Path>] of clip paths by [id].
-  void addClipPath(String id, Set<Path> paths) {
+  void addClipPath(String id, List<Path> paths) {
     _clipPaths[id] = paths;
   }
 }
@@ -824,7 +840,8 @@ class DrawableRoot implements DrawableParent {
   ///
   /// The `bounds` is not used.
   @override
-  void write(Set<Paint> paints, Set<Path> paths, AffineMatrix currentTransform) {
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+      AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
     }
@@ -842,7 +859,7 @@ class DrawableRoot implements DrawableParent {
       canvas.translate(viewport.viewBoxOffset.x, viewport.viewBoxOffset.y);
     }
     for (Drawable child in children) {
-      child.write(paints, paths, currentTransform);
+      child.write(paints, paths, commands, currentTransform);
     }
 
     if (transform != null) {
@@ -947,12 +964,13 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   bool get hasDrawableContent => children != null && children!.isNotEmpty;
 
   @override
-  void write(Set<Paint> paints, Set<Path> paths, AffineMatrix currentTransform) {
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+      AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
     }
     for (final child in children ?? []) {
-      child.write(paints, currentTransform);
+      child.write(paints, paths, commands, currentTransform);
     }
 
     // dynamic canvas;
@@ -1171,30 +1189,31 @@ class DrawableShape implements DrawableStyleable {
   bool get hasDrawableContent => bounds.width + bounds.height > 0;
 
   @override
-  void write(Set<Paint> paints, Set<Path> paths, AffineMatrix currentTransform) {
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+      AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
     }
     final Paint? fillPaint = style.fill?.toPaint();
     final Paint? strokePaint = style.stroke?.toPaint();
     final Path transformedPath = path.transformed(currentTransform);
-    transformedPath.write();
+
     paths.add(transformedPath);
     if (fillPaint != null) {
       if (paints.add(fillPaint)) {
-        fillPaint.write(null);
+        // fillPaint.write(null);
       }
       // print(
       //     'canvas.drawPath(path${transformedPath.hashCode}, paint${fillPaint.hashCode});');
-      path.paintId = fillPaint.hashCode;
+      commands.add(DrawCommand(transformedPath, fillPaint));
     }
     if (strokePaint != null) {
       if (paints.add(strokePaint)) {
-        strokePaint.write(null);
+        // strokePaint.write(null);
       }
       // print(
       //     'canvas.drawPath(path${transformedPath.hashCode}, paint${strokePaint.hashCode});');
-      path.paintId = strokePaint.hashCode;
+      commands.add(DrawCommand(transformedPath, strokePaint));
     }
     return;
     // if (!hasDrawableContent) {

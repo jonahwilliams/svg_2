@@ -1,7 +1,7 @@
 import 'dart:io';
 
 void main() {
-  var bytes = File('binary.dat').readAsBytesSync();
+  var bytes = File('gst.dat').readAsBytesSync();
   File('lib/data.dart')
     ..createSync()
     ..writeAsStringSync('''

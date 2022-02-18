@@ -96,7 +96,6 @@ abstract class PathCommand {
   const PathCommand(this.type);
 
   final PathCommandType type;
-  void write(buffer);
 
   PathCommand transformed(AffineMatrix matrix);
 }
@@ -106,11 +105,6 @@ class OvalCommand extends PathCommand {
   const OvalCommand(this.oval) : super(PathCommandType.oval);
 
   final Rect oval;
-
-  @override
-  void write(buffer) {
-    print('  ..addOval($oval)');
-  }
 
   @override
   OvalCommand transformed(AffineMatrix matrix) {
@@ -124,17 +118,17 @@ class OvalCommand extends PathCommand {
   bool operator ==(Object other) {
     return other is OvalCommand && other.oval == oval;
   }
+
+  @override
+  String toString() {
+    return '..addOval($oval)';
+  }
 }
 
 class RectCommand extends PathCommand {
   const RectCommand(this.rect) : super(PathCommandType.rect);
 
   final Rect rect;
-
-  @override
-  void write(buffer) {
-    print('..addRect($rect)');
-  }
 
   @override
   RectCommand transformed(AffineMatrix matrix) {
@@ -148,17 +142,17 @@ class RectCommand extends PathCommand {
   bool operator ==(Object other) {
     return other is RectCommand && other.rect == rect;
   }
+
+  @override
+  String toString() {
+    return '..addRect($rect)';
+  }
 }
 
 class RRectCommand extends PathCommand {
   const RRectCommand(this.rrect) : super(PathCommandType.rrect);
 
   final RRect rrect;
-
-  @override
-  void write(buffer) {
-    print('..addRRect($rrect)');
-  }
 
   @override
   RRectCommand transformed(AffineMatrix matrix) {
@@ -172,6 +166,11 @@ class RRectCommand extends PathCommand {
   bool operator ==(Object other) {
     return other is RRectCommand && other.rrect == rrect;
   }
+
+  @override
+  String toString() {
+    return '..addRRect($rrect)';
+  }
 }
 
 class LineToCommand extends PathCommand {
@@ -179,11 +178,6 @@ class LineToCommand extends PathCommand {
 
   final double x;
   final double y;
-
-  @override
-  void write(buffer) {
-    print('  ..lineTo($x, $y)');
-  }
 
   @override
   LineToCommand transformed(AffineMatrix matrix) {
@@ -198,6 +192,11 @@ class LineToCommand extends PathCommand {
   bool operator ==(Object other) {
     return other is LineToCommand && other.x == x && other.y == y;
   }
+
+  @override
+  String toString() {
+    return '..lineTo($x, $y)';
+  }
 }
 
 class MoveToCommand extends PathCommand {
@@ -205,11 +204,6 @@ class MoveToCommand extends PathCommand {
 
   final double x;
   final double y;
-
-  @override
-  void write(buffer) {
-    print('  ..moveTo($x, $y)');
-  }
 
   @override
   MoveToCommand transformed(AffineMatrix matrix) {
@@ -224,6 +218,11 @@ class MoveToCommand extends PathCommand {
   bool operator ==(Object other) {
     return other is MoveToCommand && other.x == x && other.y == y;
   }
+
+  @override
+  String toString() {
+    return '..moveTo($x, $y)';
+  }
 }
 
 class CubicToCommand extends PathCommand {
@@ -236,11 +235,6 @@ class CubicToCommand extends PathCommand {
   final double y2;
   final double x3;
   final double y3;
-
-  @override
-  void write(buffer) {
-    print('  ..cubicTo($x1, $y1, $x2, $y2, $x3, $y3)');
-  }
 
   @override
   CubicToCommand transformed(AffineMatrix matrix) {
@@ -264,15 +258,15 @@ class CubicToCommand extends PathCommand {
         other.y3 == y3;
     ;
   }
+
+  @override
+  String toString() {
+    return '..cubicTo($x1, $y1, $x2, $y2, $x3, $y3)';
+  }
 }
 
 class CloseCommand extends PathCommand {
   const CloseCommand() : super(PathCommandType.close);
-
-  @override
-  void write(buffer) {
-    print('  ..close()');
-  }
 
   @override
   CloseCommand transformed(AffineMatrix matrix) {
@@ -285,6 +279,11 @@ class CloseCommand extends PathCommand {
   @override
   bool operator ==(Object other) {
     return other is CloseCommand;
+  }
+
+  @override
+  String toString() {
+    return '..close()';
   }
 }
 
@@ -517,8 +516,6 @@ class Path {
     _commands.addAll(commands);
   }
 
-  int paintId = 0;
-
   Iterable<PathCommand> get commands => _commands;
 
   final List<PathCommand> _commands = <PathCommand>[];
@@ -531,10 +528,6 @@ class Path {
     return Rect.largest;
   }
 
-  void write() {
-
-  }
-
   Path transformed(AffineMatrix matrix) {
     final List<PathCommand> commands = <PathCommand>[];
     for (final PathCommand command in _commands) {
@@ -544,8 +537,7 @@ class Path {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(Object.hashAll(_commands), fillType, transform);
+  int get hashCode => Object.hash(Object.hashAll(_commands), fillType);
 
   @override
   bool operator ==(Object other) {
@@ -553,6 +545,19 @@ class Path {
         listEquals(_commands, other._commands) &&
         other.fillType == fillType &&
         other.transform == transform;
+  }
+
+  @override
+  String toString() {
+    final StringBuffer buffer = StringBuffer('Path()');
+    if (fillType != PathFillType.nonZero) {
+      buffer.write('\n  ..fillType = $fillType');
+    }
+    for (final command in commands) {
+      buffer.write('\n  $command');
+    }
+    buffer.write(';');
+    return buffer.toString();
   }
 }
 

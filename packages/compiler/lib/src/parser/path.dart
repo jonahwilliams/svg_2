@@ -517,6 +517,10 @@ class Path {
     _commands.addAll(commands);
   }
 
+  int paintId = 0;
+
+  Iterable<PathCommand> get commands => _commands;
+
   final List<PathCommand> _commands = <PathCommand>[];
   final PathFillType fillType;
 
@@ -528,15 +532,7 @@ class Path {
   }
 
   void write() {
-    print('final path${hashCode} = ');
-    print('Path()');
-    if (fillType != PathFillType.nonZero) {
-      print('  ..fillType = $fillType');
-    }
-    for (final PathCommand command in _commands) {
-      command.write(null);
-    }
-    print(';');
+
   }
 
   Path transformed(AffineMatrix matrix) {

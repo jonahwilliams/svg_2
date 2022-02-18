@@ -31,7 +31,7 @@ abstract class Drawable {
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` specify the area to draw in.
-  void write(Set<Paint> paints, AffineMatrix currentTransform) {}
+  void write(Set<Paint> paints, Set<Path> paths, AffineMatrix currentTransform) {}
 }
 
 /// A [Drawable] that can have a [DrawableStyle] applied to it.
@@ -108,7 +108,7 @@ class DrawableStyle {
   final PathFillType? pathFillType;
 
   /// The clip to apply, if any.
-  final List<Path>? clipPath;
+  final Set<Path>? clipPath;
 
   /// The mask to apply, if any.
   final DrawableStyleable? mask;
@@ -134,7 +134,7 @@ class DrawableStyle {
     // DrawableTextStyle? textStyle,
     PathFillType? pathFillType,
     double? groupOpacity,
-    List<Path>? clipPath,
+    Set<Path>? clipPath,
     DrawableStyleable? mask,
     BlendMode? blendMode,
   }) {
@@ -499,7 +499,7 @@ enum DrawableTextAnchorPosition {
 /// Contains reusable drawing elements that can be referenced by a String ID.
 class DrawableDefinitionServer {
   final Map<String, DrawableGradient> _gradients = <String, DrawableGradient>{};
-  final Map<String, List<Path>> _clipPaths = <String, List<Path>>{};
+  final Map<String, Set<Path>> _clipPaths = <String, Set<Path>>{};
   final Map<String, DrawableStyleable> _drawables =
       <String, DrawableStyleable>{};
 
@@ -539,13 +539,13 @@ class DrawableDefinitionServer {
     _gradients[id] = gradient;
   }
 
-  /// Get a [List<Path>] of clip paths by [id].
-  List<Path>? getClipPath(String id) {
+  /// Get a [Set<Path>] of clip paths by [id].
+  Set<Path>? getClipPath(String id) {
     return _clipPaths[id];
   }
 
-  /// Add a [List<Path>] of clip paths by [id].
-  void addClipPath(String id, List<Path> paths) {
+  /// Add a [Set<Path>] of clip paths by [id].
+  void addClipPath(String id, Set<Path> paths) {
     _clipPaths[id] = paths;
   }
 }
@@ -824,7 +824,7 @@ class DrawableRoot implements DrawableParent {
   ///
   /// The `bounds` is not used.
   @override
-  void write(Set<Paint> paints, AffineMatrix currentTransform) {
+  void write(Set<Paint> paints, Set<Path> paths, AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
     }
@@ -842,7 +842,7 @@ class DrawableRoot implements DrawableParent {
       canvas.translate(viewport.viewBoxOffset.x, viewport.viewBoxOffset.y);
     }
     for (Drawable child in children) {
-      child.write(paints, currentTransform);
+      child.write(paints, paths, currentTransform);
     }
 
     if (transform != null) {
@@ -947,7 +947,7 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   bool get hasDrawableContent => children != null && children!.isNotEmpty;
 
   @override
-  void write(Set<Paint> paints, AffineMatrix currentTransform) {
+  void write(Set<Paint> paints, Set<Path> paths, AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
     }
@@ -1171,32 +1171,30 @@ class DrawableShape implements DrawableStyleable {
   bool get hasDrawableContent => bounds.width + bounds.height > 0;
 
   @override
-  void write(Set<Paint> paints, AffineMatrix currentTransform) {
+  void write(Set<Paint> paints, Set<Path> paths, AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
     }
     final Paint? fillPaint = style.fill?.toPaint();
     final Paint? strokePaint = style.stroke?.toPaint();
-    // print('// ----------- start');
-
-    // path.write();
-    // print(currentTransform);
     final Path transformedPath = path.transformed(currentTransform);
     transformedPath.write();
-    // print('// -----------');
+    paths.add(transformedPath);
     if (fillPaint != null) {
       if (paints.add(fillPaint)) {
         fillPaint.write(null);
       }
-      print(
-          'canvas.drawPath(path${transformedPath.hashCode}, paint${fillPaint.hashCode});');
+      // print(
+      //     'canvas.drawPath(path${transformedPath.hashCode}, paint${fillPaint.hashCode});');
+      path.paintId = fillPaint.hashCode;
     }
     if (strokePaint != null) {
       if (paints.add(strokePaint)) {
         strokePaint.write(null);
       }
-      print(
-          'canvas.drawPath(path${transformedPath.hashCode}, paint${strokePaint.hashCode});');
+      // print(
+      //     'canvas.drawPath(path${transformedPath.hashCode}, paint${strokePaint.hashCode});');
+      path.paintId = strokePaint.hashCode;
     }
     return;
     // if (!hasDrawableContent) {

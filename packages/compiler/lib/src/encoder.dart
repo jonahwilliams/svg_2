@@ -45,6 +45,7 @@ class PaintingCodec extends StandardMessageCodec {
   static const int _pathTag = 27;
   static const int _paintTag = 28;
   static const int _drawCommandTag = 29;
+  static const int _drawVerticesTag = 30;
 
   final Map<Paint, int> _paintIds = {};
   final Map<Path, int> _pathIds = {};
@@ -61,6 +62,8 @@ class PaintingCodec extends StandardMessageCodec {
         return _readPath(buffer);
       case _drawCommandTag:
         return _readDrawCommand(buffer);
+      case _drawVerticesTag:
+        return _readDrawVertices(buffer);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -191,17 +194,32 @@ class PaintingCodec extends StandardMessageCodec {
   }
 
   void _writeDrawCommand(WriteBuffer buffer, DrawCommand command) {
-    buffer.putUint8(_drawCommandTag);
-    assert(_pathIds.containsKey(command.path), 'Expected to find ${command.path.hashCode}, have ${_pathIds.keys.map((p) => p.hashCode).toList()}');
-    assert(_paintIds.containsKey(command.paint));
-    buffer.putInt32(_pathIds[command.path]!);
-    buffer.putInt32(_paintIds[command.paint]!);
+    if (command is DrawPathCommand) {
+      buffer.putUint8(_drawCommandTag);
+      assert(_pathIds.containsKey(command.path), 'Expected to find ${command.path.hashCode}, have ${_pathIds.keys.map((p) => p.hashCode).toList()}');
+      assert(_paintIds.containsKey(command.paint));
+      buffer.putInt32(_pathIds[command.path]!);
+      buffer.putInt32(_paintIds[command.paint]!);
+    } else if (command is DrawVerticesCommand) {
+       buffer.putUint8(_drawVerticesTag);
+       buffer.putInt32(_paintIds[command.paint]!);
+       buffer.putInt32(command.vertices.length);
+       buffer.putFloat32List(command.vertices);
+    }
   }
 
   Object? _readDrawCommand(ReadBuffer buffer) {
     final int pathId = buffer.getInt32();
     final int paintId = buffer.getInt32();
     _listener?.onDrawCommand(pathId, paintId);
+    return null;
+  }
+
+  Object? _readDrawVertices(ReadBuffer buffer) {
+    final int paintId = buffer.getInt32();
+    final int verticesLength = buffer.getInt32();
+    final Float32List vertices = buffer.getFloat32List(verticesLength);
+    _listener?.onDrawVertices(vertices, paintId);
     return null;
   }
 }
@@ -233,6 +251,11 @@ abstract class PaintingCodecListener {
 
   void onDrawCommand(
     int path,
+    int paint,
+  );
+
+  void onDrawVertices(
+    Float32List vertices,
     int paint,
   );
 }
@@ -271,7 +294,10 @@ class StandardMessageCodec {
     if (message == null) return null;
     final ReadBuffer buffer = ReadBuffer(message);
     final Object? result = readValue(buffer);
-    if (buffer.hasRemaining) throw const FormatException('Message corrupted');
+    while (buffer.hasRemaining) {
+      if (buffer.getUint8() != 0)
+        throw const FormatException('Message corrupted');
+    }
     return result;
   }
 

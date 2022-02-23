@@ -2,14 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import 'data.dart';
 
 enum PathCommandType {
   oval,
@@ -27,11 +26,11 @@ class PaintingCodec extends StandardMessageCodec {
   static const int _pathTag = 27;
   static const int _paintTag = 28;
   static const int _drawCommandTag = 29;
+  static const int _drawVerticesTag = 30;
 
   PaintingCodecListener? _listener;
 
   Object? readValueOfType(int type, ReadBuffer buffer) {
-    print(type);
     switch (type) {
       case _paintTag:
         return _readPaint(buffer);
@@ -39,6 +38,8 @@ class PaintingCodec extends StandardMessageCodec {
         return _readPath(buffer);
       case _drawCommandTag:
         return _readDrawCommand(buffer);
+      case _drawVerticesTag:
+        return _readDrawVertices(buffer);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -70,22 +71,18 @@ class PaintingCodec extends StandardMessageCodec {
     final int id = buffer.getInt32();
     final int fillType = buffer.getInt32();
     final int commandLength = buffer.getInt32();
-    print('path $id has $commandLength commands');
     _listener?.onPathStart(id, fillType);
 
     for (var i = 0; i < commandLength; i++) {
       final int pathType = buffer.getUint8();
       if (pathType == PathCommandType.move.index) {
         var controlPoints = buffer.getFloat32List(2);
-        print('moveTo $controlPoints');
         _listener?.onPathMoveTo(controlPoints[0], controlPoints[1]);
       } else if (pathType == PathCommandType.line.index) {
         var controlPoints = buffer.getFloat32List(2);
-        print('lineTo $controlPoints');
         _listener?.onPathLineTo(controlPoints[0], controlPoints[1]);
       } else if (pathType == PathCommandType.cubic.index) {
         var controlPoints = buffer.getFloat32List(6);
-        print('cubicTo $controlPoints');
         _listener?.onPathCubicTo(
           controlPoints[0],
           controlPoints[1],
@@ -95,7 +92,6 @@ class PaintingCodec extends StandardMessageCodec {
           controlPoints[5],
         );
       } else if (pathType == PathCommandType.close.index) {
-        print('close');
         _listener?.onPathClose();
       } else {
         throw UnsupportedError(pathType.toString());
@@ -109,6 +105,14 @@ class PaintingCodec extends StandardMessageCodec {
     final int pathId = buffer.getInt32();
     final int paintId = buffer.getInt32();
     _listener?.onDrawCommand(pathId, paintId);
+    return null;
+  }
+
+  Object? _readDrawVertices(ReadBuffer buffer) {
+    final int paintId = buffer.getInt32();
+    final int vertexLength = buffer.getInt32();
+    final Float32List vertices = buffer.getFloat32List(vertexLength);
+    _listener?.onDrawVertices(vertices, paintId);
     return null;
   }
 }
@@ -142,15 +146,20 @@ abstract class PaintingCodecListener {
     int path,
     int paint,
   );
+
+  void onDrawVertices(
+    Float32List vertices,
+    int paint,
+  );
 }
 
 class FlutterPaintCodecListener extends PaintingCodecListener {
   FlutterPaintCodecListener(this.canvas);
 
-  final Map<int, Paint> _paints = {};
+  final List<Paint> _paints = [];
+  final List<Path> _paths = [];
   final Canvas canvas;
   Path? currentPath;
-  final Map<int, Path> _paths = {};
 
   @override
   void onPathClose() {
@@ -176,7 +185,7 @@ class FlutterPaintCodecListener extends PaintingCodecListener {
   @override
   void onPathStart(int id, int fillType) {
     currentPath = Path()..fillType = PathFillType.values[fillType];
-    _paths[id] = currentPath!;
+    _paths.add(currentPath!);
   }
 
   void onPathFinished() {
@@ -185,8 +194,7 @@ class FlutterPaintCodecListener extends PaintingCodecListener {
 
   @override
   void onDrawCommand(int path, int paint) {
-    print('canvas.drawPath($path, $paint)');
-    canvas.drawPath(_paths[path]!, _paints[paint]!);
+    canvas.drawPath(_paths[path - 1], _paints[paint - 1]);
   }
 
   @override
@@ -200,19 +208,25 @@ class FlutterPaintCodecListener extends PaintingCodecListener {
     int paintStyle,
     int id,
   ) {
-    _paints[id] = Paint()
+    _paints.add(Paint()
       ..color = Color(color)
       ..strokeCap = StrokeCap.values[strokeCap]
       ..strokeJoin = StrokeJoin.values[strokeJoin]
       ..blendMode = BlendMode.values[blendMode]
       ..strokeMiterLimit = strokeMiterLimit
       ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.values[paintStyle];
+      ..style = PaintingStyle.values[paintStyle]);
+  }
+
+  @override
+  void onDrawVertices(Float32List vertices, int paint) {
+    var vertexObject = Vertices.raw(VertexMode.triangles, vertices);
+    canvas.drawVertices(vertexObject, BlendMode.src, _paints[paint - 1]);
   }
 }
 
 Future<void> main() async {
-  var bytes = Uint8List.fromList(data);
+  var bytes = File('flutter_logo.bin').readAsBytesSync();
   window.onBeginFrame = (_) {
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
@@ -225,9 +239,8 @@ Future<void> main() async {
       var sw = Stopwatch()..start();
       codec.decodeMessage(bytes.buffer.asByteData());
       print(sw.elapsedMilliseconds);
-    } on FormatException catch (err, s) {
+    } on FormatException catch (err) {
       print(err);
-      print(s);
       // This is expected.
     }
 
@@ -239,6 +252,7 @@ Future<void> main() async {
 
     picture.dispose();
     scene.dispose();
+   // window.scheduleFrame();
   };
   window.scheduleFrame();
 }

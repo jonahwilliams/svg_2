@@ -2,8 +2,9 @@ import 'dart:ffi' as ffi;
 
 import 'dart:typed_data';
 
-final lib = ffi.DynamicLibrary.open(
-    '/Users/dnfield/src/flutter/engine/src/out/host_debug_unopt/libtesspeller.dylib');
+import 'parser/path.dart';
+
+final lib = ffi.DynamicLibrary.open('tesspeller.dll');
 
 class _Vertices extends ffi.Struct {
   external ffi.Pointer<ffi.Float> points;
@@ -45,6 +46,16 @@ typedef _close_type = ffi.Void Function(ffi.Pointer<_PathBuilder>, ffi.Bool);
 
 final closeFn = lib.lookupFunction<_close_type, _CloseType>('Close');
 
+typedef _AddRectType = void Function(ffi.Pointer<_PathBuilder>, double, double, double, double);
+typedef _add_rect_type = ffi.Void Function(ffi.Pointer<_PathBuilder>, ffi.Float, ffi.Float, ffi.Float, ffi.Float);
+
+final addRectFn = lib.lookupFunction<_add_rect_type, _AddRectType>('AddRect');
+
+typedef _AddRRectType = void Function(ffi.Pointer<_PathBuilder>, double, double, double, double, double, double);
+typedef _add_rrect_type = ffi.Void Function(ffi.Pointer<_PathBuilder>, ffi.Float, ffi.Float, ffi.Float, ffi.Float, ffi.Float, ffi.Float);
+
+final addRRectFn = lib.lookupFunction<_add_rrect_type, _AddRRectType>('AddRoundedRect');
+
 typedef _TesselateType = ffi.Pointer<_Vertices> Function(
     ffi.Pointer<_PathBuilder>);
 typedef _tesselate_type = ffi.Pointer<_Vertices> Function(
@@ -80,6 +91,14 @@ class PathBuilder {
     _lineToFn(_builder, x, y);
   }
 
+  void addRect(double x, double y, double w, double h) {
+    addRectFn(_builder, x, y, w, h);
+  }
+
+  void addRRect(double x, double y, double w, double h, double a, double b) {
+    addRRectFn(_builder, x, y, w, h, a, b);
+  }
+
   void cubicTo(
     double x1,
     double y1,
@@ -109,17 +128,44 @@ class PathBuilder {
   }
 }
 
-void main() {
+Float32List convertPathToVertices(Path path) {
   var builder = PathBuilder();
-  builder.moveTo(10, 10);
-  builder.lineTo(20, 10);
-  builder.lineTo(20, 20);
-  builder.lineTo(10, 20);
-  builder.cubicTo(100, 100, 200, 150, 30, 30);
-  builder.close();
-  var arr = builder.tesselate();
-  print(arr);
-  // print(arr.size);
-
-  builder.dispose();
+  for (var command in path.commands) {
+    switch (command.type) {
+      case PathCommandType.move:
+        var moveTo = command as MoveToCommand;
+        builder.moveTo(moveTo.x, moveTo.y);
+        break;
+      case PathCommandType.line:
+        var lineTo = command as LineToCommand;
+        builder.lineTo(lineTo.x, lineTo.y);
+        break;
+      case PathCommandType.cubic:
+        var cubicTo = command as CubicToCommand;
+        builder.cubicTo(
+          cubicTo.x1,
+          cubicTo.y1,
+          cubicTo.x2,
+          cubicTo.x2,
+          cubicTo.y3,
+          cubicTo.y3,
+        );
+        break;
+      case PathCommandType.close:
+        builder.close();
+        break;
+      case PathCommandType.rect:
+        var rect = (command as RectCommand).rect;
+        builder.addRect(rect.left, rect.top, rect.right, rect.bottom);
+        break;
+      case PathCommandType.rrect:
+        var rrect = (command as RRectCommand).rrect;
+        builder.addRRect(rrect.left, rrect.top, rrect.right, rrect.bottom, rrect.rx, rrect.ry);
+        break;
+      default:
+        print(command);
+        throw Error();
+    }
+  }
+  return builder.tesselate();
 }

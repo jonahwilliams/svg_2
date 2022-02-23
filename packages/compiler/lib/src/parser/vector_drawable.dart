@@ -1,16 +1,23 @@
 import 'dart:math' as math;
-// import 'dart:ui' as ui hide Path, Canvas, Picture;
+import 'dart:typed_data';
 
+import 'package:compiler/src/parser/util.dart';
+import 'package:compiler/src/tesspeller.dart';
 import 'package:meta/meta.dart';
-// import 'package:path_drawing/path_drawing.dart';
+
 import 'package:vector_math/vector_math_64.dart';
 
 import 'path.dart';
 import 'paint.dart';
 
 @immutable
-class DrawCommand {
-  DrawCommand(this.path, this.paint);
+abstract class DrawCommand {
+  const DrawCommand();
+}
+
+@immutable
+class DrawPathCommand extends DrawCommand {
+  DrawPathCommand(this.path, this.paint);
   final Path path;
   final Paint paint;
 
@@ -19,7 +26,23 @@ class DrawCommand {
 
   @override
   bool operator ==(Object? other) {
-    return other is DrawCommand && other.path == path && other.paint == paint;
+    return other is DrawPathCommand && other.path == path && other.paint == paint;
+  }
+}
+
+@immutable
+class DrawVerticesCommand extends DrawCommand {
+  const DrawVerticesCommand(this.vertices, this.paint);
+
+  final Float32List vertices;
+  final Paint paint;
+
+  @override
+  int get hashCode => Object.hash(Object.hashAll(vertices), paint);
+
+  @override
+  bool operator ==(Object? other) {
+    return other is DrawVerticesCommand && listEquals(vertices, other.vertices) && other.paint == paint;
   }
 }
 
@@ -1198,22 +1221,22 @@ class DrawableShape implements DrawableStyleable {
     final Paint? strokePaint = style.stroke?.toPaint();
     final Path transformedPath = path.transformed(currentTransform);
 
-    paths.add(transformedPath);
+    bool usedPath = false;
     if (fillPaint != null) {
-      if (paints.add(fillPaint)) {
-        // fillPaint.write(null);
-      }
-      // print(
-      //     'canvas.drawPath(path${transformedPath.hashCode}, paint${fillPaint.hashCode});');
-      commands.add(DrawCommand(transformedPath, fillPaint));
+      paints.add(fillPaint);
+      // Convert fills into vertices.
+      var vertices = convertPathToVertices(transformedPath);
+      commands.add(DrawVerticesCommand(vertices, fillPaint));
     }
     if (strokePaint != null) {
-      if (paints.add(strokePaint)) {
-        // strokePaint.write(null);
-      }
+      usedPath = true;
+      paints.add(strokePaint);
       // print(
       //     'canvas.drawPath(path${transformedPath.hashCode}, paint${strokePaint.hashCode});');
-      commands.add(DrawCommand(transformedPath, strokePaint));
+      commands.add(DrawPathCommand(transformedPath, strokePaint));
+    }
+    if (usedPath) {
+      paths.add(transformedPath);
     }
     return;
     // if (!hasDrawableContent) {
@@ -1359,4 +1382,10 @@ bool scaleCanvasToViewBox2(
     ..translate(shift.x, shift.y)
     ..scale(scale, scale);
   return true;
+}
+
+class Vertices {
+  const Vertices(this.vertexBuffer);
+
+  final Float32List vertexBuffer;
 }

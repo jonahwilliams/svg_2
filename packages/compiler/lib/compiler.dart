@@ -57,17 +57,23 @@ void main(List<String> args) async {
 
   assert(() {
     for(final command in commands) {
-      assert(paths.contains(command.path), 'Did not get ${command.path}');
-      assert(paints.contains(command.paint));
+      if (command is DrawPathCommand) {
+        assert(paths.contains(command.path), 'Did not get ${command.path}');
+        assert(paints.contains(command.paint));
+      } else if (command is DrawVerticesCommand) {
+        assert(paints.contains(command.paint));
+      }
     }
     return true;
   }());
+
   var result  = codec.encodeMessage([
-    0,
     paints.toList(),
-    paths.toList(),
+    if (paths.isNotEmpty)
+      paths.toList(),
     commands,
   ]);
+  codec.decodeMessage(result);
 
   output.writeAsBytesSync(result!.buffer.asUint8List());
 }

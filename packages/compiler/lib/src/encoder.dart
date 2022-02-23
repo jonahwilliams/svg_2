@@ -202,9 +202,15 @@ class PaintingCodec extends StandardMessageCodec {
       buffer.putInt32(_paintIds[command.paint]!);
     } else if (command is DrawVerticesCommand) {
        buffer.putUint8(_drawVerticesTag);
-       buffer.putInt32(_paintIds[command.paint]!);
+       buffer.putInt32(command.paint == null ? -1 : _paintIds[command.paint]!);
        buffer.putInt32(command.vertices.length);
        buffer.putFloat32List(command.vertices);
+       if (command.colors == null) {
+         buffer.putInt32(0);
+       } else {
+         buffer.putInt32(command.colors!.length);
+         buffer.putInt32List(command.colors!);
+       }
     }
   }
 
@@ -219,7 +225,12 @@ class PaintingCodec extends StandardMessageCodec {
     final int paintId = buffer.getInt32();
     final int verticesLength = buffer.getInt32();
     final Float32List vertices = buffer.getFloat32List(verticesLength);
-    _listener?.onDrawVertices(vertices, paintId);
+    final int colorsLength = buffer.getInt32();
+    Int32List? colors;
+    if (colorsLength != 0) {
+      colors = buffer.getInt32List(colorsLength);
+    }
+    _listener?.onDrawVertices(vertices, colors, paintId);
     return null;
   }
 }
@@ -256,9 +267,12 @@ abstract class PaintingCodecListener {
 
   void onDrawVertices(
     Float32List vertices,
+    Int32List? colors,
     int paint,
   );
 }
+
+int? lastZeroIndex;
 
 /// [MessageCodec] using the Flutter standard binary encoding.
 class StandardMessageCodec {

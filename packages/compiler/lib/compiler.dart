@@ -26,34 +26,20 @@ void main(List<String> args) async {
   final root = await state.parse();
   final Set<Paint> paints = <Paint>{};
   final Set<Path> paths = <Path>{};
-  final List<DrawCommand> commands = <DrawCommand>[];
+  final List<DrawCommand?> commands = <DrawCommand?>[];
   root.write(paints, paths, commands, AffineMatrix.identity);
-//   print('''
-// import 'dart:ui';
 
-// void main() {
-//   window.onBeginFrame = (_) {
-//     final recorder = PictureRecorder();
-//     final canvas = Canvas(recorder);
-//     doDraw(canvas);
-//     final picture = recorder.endRecording();
-
-//     final builder = SceneBuilder();
-//     builder.addPicture(Offset.zero, picture);
-//     final scene = builder.build();
-//     window.render(scene);
-
-//     picture.dispose();
-//     scene.dispose();
-//   };
-//   window.scheduleFrame();
-// }
-
-// void doDraw(Canvas canvas) {
-// ''');
-//   root.write(paints);
-//   print('}');
   var codec = PaintingCodec();
+  // for (var i = 0; i < commands.length - 1; i++) {
+  //    var left = commands[i]!;
+  //    var right = commands[i + 1]!;
+  //    if (left.canCombine(right)) {
+  //      var newCommand = left.combine(right);
+  //      commands[i + 1] = newCommand;
+  //      commands[i] = null;
+  //    }
+  // }
+  commands.removeWhere((element) => element == null);
 
   assert(() {
     for(final command in commands) {
@@ -75,5 +61,5 @@ void main(List<String> args) async {
   ]);
   codec.decodeMessage(result);
 
-  output.writeAsBytesSync(result!.buffer.asUint8List());
+  output.writeAsBytesSync(result!.buffer.asUint8List(0, lastZeroIndex));
 }

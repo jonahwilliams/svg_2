@@ -13,6 +13,10 @@ import 'paint.dart';
 @immutable
 abstract class DrawCommand {
   const DrawCommand();
+
+  bool canCombine(DrawCommand next);
+
+  DrawCommand combine(DrawCommand other);
 }
 
 @immutable
@@ -28,21 +32,69 @@ class DrawPathCommand extends DrawCommand {
   bool operator ==(Object? other) {
     return other is DrawPathCommand && other.path == path && other.paint == paint;
   }
+
+  bool canCombine(DrawCommand next) => false;
+
+  DrawCommand combine(DrawCommand other) {
+    throw StateError('Cant combine path commabds');
+  }
 }
 
 @immutable
 class DrawVerticesCommand extends DrawCommand {
-  const DrawVerticesCommand(this.vertices, this.paint);
+  const DrawVerticesCommand(this.vertices, this.paint, this.colors);
 
   final Float32List vertices;
-  final Paint paint;
+  final Int32List? colors;
+  final Paint? paint;
 
   @override
-  int get hashCode => Object.hash(Object.hashAll(vertices), paint);
+  int get hashCode => Object.hash(Object.hashAll(vertices), Object.hashAll(colors ?? []), paint);
 
   @override
   bool operator ==(Object? other) {
-    return other is DrawVerticesCommand && listEquals(vertices, other.vertices) && other.paint == paint;
+    return other is DrawVerticesCommand && listEquals(vertices, other.vertices)  && listEquals(colors, other.colors)  && other.paint == paint;
+  }
+
+  @override
+  bool canCombine(DrawCommand next) {
+    if (next is DrawVerticesCommand) {
+      var leftCanCombine = paint == null || paint?.shader == null;
+      var rightCanCombine = next.paint == null || next.paint?.shader == null;
+      return leftCanCombine && rightCanCombine;
+    }
+    return false;
+  }
+
+  DrawVerticesCommand combine(DrawCommand other) {
+    if (other is! DrawVerticesCommand) {
+      throw StateError('message');
+    }
+    final Int32List newColors = Int32List((vertices.length ~/ 2) + (other.vertices.length ~/ 2));
+    final Float32List newVertices = Float32List.fromList(vertices + other.vertices);
+    if (paint != null) {
+      for (var i = 0; i < vertices.length ~/ 2; i++) {
+        newColors[i] = paint!.color.value;
+      }
+    } else {
+      for (var i = 0; i < vertices.length ~/ 2; i++) {
+        newColors[i] = colors![i];
+      }
+    }
+
+    var offset = (vertices.length ~/ 2);
+
+    if (other.paint != null) {
+      for (var i = offset; i < other.vertices.length ~/ 2 + offset; i++) {
+        newColors[i] = other.paint!.color.value;
+      }
+    } else {
+      for (var i = offset; i < vertices.length ~/ 2 + offset; i++) {
+        newColors[i] = other.colors![i];
+      }
+    }
+
+    return DrawVerticesCommand(newVertices, null, newColors);
   }
 }
 
@@ -69,7 +121,7 @@ abstract class Drawable {
   /// the `parentPaint` to optionally override the child's paint.
   ///
   /// The `bounds` specify the area to draw in.
-  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand?> commands,
       AffineMatrix currentTransform) {}
 }
 
@@ -863,7 +915,7 @@ class DrawableRoot implements DrawableParent {
   ///
   /// The `bounds` is not used.
   @override
-  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand?> commands,
       AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
@@ -987,7 +1039,7 @@ class DrawableGroup implements DrawableStyleable, DrawableParent {
   bool get hasDrawableContent => children != null && children!.isNotEmpty;
 
   @override
-  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand?> commands,
       AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
@@ -1212,7 +1264,7 @@ class DrawableShape implements DrawableStyleable {
   bool get hasDrawableContent => bounds.width + bounds.height > 0;
 
   @override
-  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand> commands,
+  void write(Set<Paint> paints, Set<Path> paths, List<DrawCommand?> commands,
       AffineMatrix currentTransform) {
     if (transform != null) {
       currentTransform = currentTransform.multiplied(transform!);
@@ -1226,7 +1278,7 @@ class DrawableShape implements DrawableStyleable {
       paints.add(fillPaint);
       // Convert fills into vertices.
       var vertices = convertPathToVertices(transformedPath);
-      commands.add(DrawVerticesCommand(vertices, fillPaint));
+      commands.add(DrawVerticesCommand(vertices, fillPaint, null));
     }
     if (strokePaint != null) {
       usedPath = true;

@@ -146,8 +146,8 @@ Float32List convertPathToVertices(Path path) {
           cubicTo.x1,
           cubicTo.y1,
           cubicTo.x2,
-          cubicTo.x2,
-          cubicTo.y3,
+          cubicTo.y2,
+          cubicTo.x3,
           cubicTo.y3,
         );
         break;

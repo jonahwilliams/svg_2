@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'parser/path.dart';
 
 final lib = ffi.DynamicLibrary.open('tesspeller.dll');
+// final lib = ffi.DynamicLibrary.open('libtesspeller.dylib');
 
 class _Vertices extends ffi.Struct {
   external ffi.Pointer<ffi.Float> points;

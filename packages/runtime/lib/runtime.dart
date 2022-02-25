@@ -31,6 +31,7 @@ class PaintingCodec extends StandardMessageCodec {
   PaintingCodecListener? _listener;
 
   Object? readValueOfType(int type, ReadBuffer buffer) {
+    assert(type != 0);
     switch (type) {
       case _paintTag:
         return _readPaint(buffer);
@@ -112,6 +113,11 @@ class PaintingCodec extends StandardMessageCodec {
     final int paintId = buffer.getInt32();
     final int vertexLength = buffer.getInt32();
     final Float32List vertices = buffer.getFloat32List(vertexLength);
+    final int colorsLength = buffer.getInt32();
+    Int32List? colors;
+    if (colorsLength != 0) {
+      colors = buffer.getInt32List(colorsLength);
+    }
     _listener?.onDrawVertices(vertices, paintId);
     return null;
   }
@@ -221,7 +227,7 @@ class FlutterPaintCodecListener extends PaintingCodecListener {
   @override
   void onDrawVertices(Float32List vertices, int paint) {
     var vertexObject = Vertices.raw(VertexMode.triangles, vertices);
-    canvas.drawVertices(vertexObject, BlendMode.src, _paints[paint - 1]);
+    canvas.drawVertices(vertexObject, BlendMode.srcOver, _paints[paint - 1]);
   }
 }
 
@@ -235,6 +241,7 @@ Future<void> main() async {
     canvas.drawRect(
         Rect.fromLTWH(0, 0, 1000, 1000), Paint()..color = Colors.white);
     canvas.translate(200, 200);
+    // canvas.scale(3);
     try {
       var sw = Stopwatch()..start();
       codec.decodeMessage(bytes.buffer.asByteData());

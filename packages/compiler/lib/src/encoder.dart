@@ -55,6 +55,7 @@ class PaintingCodec extends StandardMessageCodec {
   PaintingCodecListener? _listener;
 
   Object? readValueOfType(int type, ReadBuffer buffer) {
+    assert(type != 0);
     switch (type) {
       case _paintTag:
         return _readPaint(buffer);
@@ -196,21 +197,22 @@ class PaintingCodec extends StandardMessageCodec {
   void _writeDrawCommand(WriteBuffer buffer, DrawCommand command) {
     if (command is DrawPathCommand) {
       buffer.putUint8(_drawCommandTag);
-      assert(_pathIds.containsKey(command.path), 'Expected to find ${command.path.hashCode}, have ${_pathIds.keys.map((p) => p.hashCode).toList()}');
+      assert(_pathIds.containsKey(command.path),
+          'Expected to find ${command.path.hashCode}, have ${_pathIds.keys.map((p) => p.hashCode).toList()}');
       assert(_paintIds.containsKey(command.paint));
       buffer.putInt32(_pathIds[command.path]!);
       buffer.putInt32(_paintIds[command.paint]!);
     } else if (command is DrawVerticesCommand) {
-       buffer.putUint8(_drawVerticesTag);
-       buffer.putInt32(command.paint == null ? -1 : _paintIds[command.paint]!);
-       buffer.putInt32(command.vertices.length);
-       buffer.putFloat32List(command.vertices);
-       if (command.colors == null) {
-         buffer.putInt32(0);
-       } else {
-         buffer.putInt32(command.colors!.length);
-         buffer.putInt32List(command.colors!);
-       }
+      buffer.putUint8(_drawVerticesTag);
+      buffer.putInt32(command.paint == null ? -1 : _paintIds[command.paint]!);
+      buffer.putInt32(command.vertices.length);
+      buffer.putFloat32List(command.vertices);
+      if (command.colors == null) {
+        buffer.putInt32(0);
+      } else {
+        buffer.putInt32(command.colors!.length);
+        buffer.putInt32List(command.colors!);
+      }
     }
   }
 
@@ -353,6 +355,7 @@ class StandardMessageCodec {
   /// Android, that would get converted to a `java.math.BigInteger` object. On
   /// iOS, the string representation is returned.
   void writeValue(WriteBuffer buffer, Object? value) {
+    assert(value != null);
     if (value == null) {
       buffer.putUint8(_valueNull);
     } else if (value is bool) {

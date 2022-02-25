@@ -30,7 +30,9 @@ class DrawPathCommand extends DrawCommand {
 
   @override
   bool operator ==(Object? other) {
-    return other is DrawPathCommand && other.path == path && other.paint == paint;
+    return other is DrawPathCommand &&
+        other.path == path &&
+        other.paint == paint;
   }
 
   bool canCombine(DrawCommand next) => false;
@@ -49,11 +51,15 @@ class DrawVerticesCommand extends DrawCommand {
   final Paint? paint;
 
   @override
-  int get hashCode => Object.hash(Object.hashAll(vertices), Object.hashAll(colors ?? []), paint);
+  int get hashCode => Object.hash(
+      Object.hashAll(vertices), Object.hashAll(colors ?? []), paint);
 
   @override
   bool operator ==(Object? other) {
-    return other is DrawVerticesCommand && listEquals(vertices, other.vertices)  && listEquals(colors, other.colors)  && other.paint == paint;
+    return other is DrawVerticesCommand &&
+        listEquals(vertices, other.vertices) &&
+        listEquals(colors, other.colors) &&
+        other.paint == paint;
   }
 
   @override
@@ -70,8 +76,10 @@ class DrawVerticesCommand extends DrawCommand {
     if (other is! DrawVerticesCommand) {
       throw StateError('message');
     }
-    final Int32List newColors = Int32List((vertices.length ~/ 2) + (other.vertices.length ~/ 2));
-    final Float32List newVertices = Float32List.fromList(vertices + other.vertices);
+    final Int32List newColors =
+        Int32List((vertices.length ~/ 2) + (other.vertices.length ~/ 2));
+    final Float32List newVertices =
+        Float32List.fromList(vertices + other.vertices);
     if (paint != null) {
       for (var i = 0; i < vertices.length ~/ 2; i++) {
         newColors[i] = paint!.color.value;
@@ -1275,10 +1283,12 @@ class DrawableShape implements DrawableStyleable {
 
     bool usedPath = false;
     if (fillPaint != null) {
-      paints.add(fillPaint);
-      // Convert fills into vertices.
-      var vertices = convertPathToVertices(transformedPath);
-      commands.add(DrawVerticesCommand(vertices, fillPaint, null));
+      // Convert fills into vertices, avoid adding if degenerates to empty.
+      final vertices = convertPathToVertices(transformedPath);
+      if (vertices.isNotEmpty) {
+        paints.add(fillPaint);
+        commands.add(DrawVerticesCommand(vertices, fillPaint, null));
+      }
     }
     if (strokePaint != null) {
       usedPath = true;

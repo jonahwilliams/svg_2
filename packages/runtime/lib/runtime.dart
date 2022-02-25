@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:io';
+// import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'data.dart';
 
 enum PathCommandType {
   oval,
@@ -113,12 +114,21 @@ class PaintingCodec extends StandardMessageCodec {
     final int paintId = buffer.getInt32();
     final int vertexLength = buffer.getInt32();
     final Float32List vertices = buffer.getFloat32List(vertexLength);
-    final int colorsLength = buffer.getInt32();
-    Int32List? colors;
-    if (colorsLength != 0) {
-      colors = buffer.getInt32List(colorsLength);
+    // final int colorsLength = buffer.getInt32();
+    final int color = buffer.getInt32();
+    final Int32List colors = Int32List(vertices.length ~/ 2);
+    for (int i = 0; i < colors.length; i++) {
+      colors[i] = color;
     }
-    _listener?.onDrawVertices(vertices, paintId);
+    // if (colorsLength != 0) {
+    //   colors = buffer.getInt32List(colorsLength);
+    // }
+    final int indicesLength = buffer.getInt32();
+    Uint16List? indices;
+    if (indicesLength > 0) {
+      indices = buffer.getUint16List(indicesLength);
+    }
+    _listener?.onDrawVertices(vertices, colors, paintId, indices);
     return null;
   }
 }
@@ -155,7 +165,9 @@ abstract class PaintingCodecListener {
 
   void onDrawVertices(
     Float32List vertices,
+    Int32List colors,
     int paint,
+    Uint16List? indices,
   );
 }
 
@@ -223,31 +235,34 @@ class FlutterPaintCodecListener extends PaintingCodecListener {
       ..strokeWidth = strokeWidth
       ..style = PaintingStyle.values[paintStyle]);
   }
-
+int i = 1;
   @override
-  void onDrawVertices(Float32List vertices, int paint) {
-    var vertexObject = Vertices.raw(VertexMode.triangles, vertices);
-    canvas.drawVertices(vertexObject, BlendMode.srcOver, _paints[paint - 1]);
+  void onDrawVertices(Float32List vertices, Int32List colors, int paint, Uint16List? indices) {
+    // final Paint uiPaint = _paints[paint - 1];
+    var vertexObject = Vertices.raw(VertexMode.triangles, vertices, colors: colors, indices: indices);
+    // print(vertices);
+    canvas.drawVertices(vertexObject, BlendMode.srcOver, Paint()); // _paints[paint - 1]);
   }
 }
 
 Future<void> main() async {
-  var bytes = File('flutter_logo.bin').readAsBytesSync();
+  var bytes =
+      Uint8List.fromList(data); //File('flutter_logo.bin').readAsBytesSync();
   window.onBeginFrame = (_) {
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
     final listener = FlutterPaintCodecListener(canvas);
     var codec = PaintingCodec(listener);
-    canvas.drawRect(
-        Rect.fromLTWH(0, 0, 1000, 1000), Paint()..color = Colors.white);
-    canvas.translate(200, 200);
+    // canvas.drawRect(
+    //     Rect.fromLTWH(0, 0, 1000, 1000), Paint()..color = Colors.white);
+    // canvas.translate(200, 200);
     // canvas.scale(3);
     try {
-      var sw = Stopwatch()..start();
+      // var sw = Stopwatch()..start();
       codec.decodeMessage(bytes.buffer.asByteData());
-      print(sw.elapsedMilliseconds);
+      // print(sw.elapsedMilliseconds);
     } on FormatException catch (err) {
-      print(err);
+      // print(err);
       // This is expected.
     }
 
@@ -259,7 +274,7 @@ Future<void> main() async {
 
     picture.dispose();
     scene.dispose();
-   // window.scheduleFrame();
+    window.scheduleFrame();
   };
   window.scheduleFrame();
 }

@@ -44,21 +44,28 @@ class DrawPathCommand extends DrawCommand {
 
 @immutable
 class DrawVerticesCommand extends DrawCommand {
-  const DrawVerticesCommand(this.vertices, this.paint, this.colors);
+  const DrawVerticesCommand(
+    this.vertices,
+    this.paint,
+    this.colors,
+    this.indices,
+  );
 
   final Float32List vertices;
   final Int32List? colors;
   final Paint? paint;
+  final Uint16List? indices;
 
   @override
-  int get hashCode => Object.hash(
-      Object.hashAll(vertices), Object.hashAll(colors ?? []), paint);
+  int get hashCode => Object.hash(Object.hashAll(vertices),
+      Object.hashAll(colors ?? []), paint, Object.hashAll(indices ?? []));
 
   @override
   bool operator ==(Object? other) {
     return other is DrawVerticesCommand &&
         listEquals(vertices, other.vertices) &&
         listEquals(colors, other.colors) &&
+        listEquals(indices, other.indices) &&
         other.paint == paint;
   }
 
@@ -102,7 +109,7 @@ class DrawVerticesCommand extends DrawCommand {
       }
     }
 
-    return DrawVerticesCommand(newVertices, null, newColors);
+    return DrawVerticesCommand(newVertices, null, newColors, null);
   }
 }
 
@@ -1286,8 +1293,18 @@ class DrawableShape implements DrawableStyleable {
       // Convert fills into vertices, avoid adding if degenerates to empty.
       final vertices = convertPathToVertices(transformedPath);
       if (vertices.isNotEmpty) {
-        paints.add(fillPaint);
-        commands.add(DrawVerticesCommand(vertices, fillPaint, null));
+        // paints.add(fillPaint);
+        commands.add(DrawVerticesCommand(
+          vertices,
+          null,
+          Int32List.fromList(
+            List<int>.filled(
+              vertices.length ~/ 2,
+              fillPaint.color.value,
+            ),
+          ),
+          null,
+        ));
       }
     }
     if (strokePaint != null) {
@@ -1444,10 +1461,4 @@ bool scaleCanvasToViewBox2(
     ..translate(shift.x, shift.y)
     ..scale(scale, scale);
   return true;
-}
-
-class Vertices {
-  const Vertices(this.vertexBuffer);
-
-  final Float32List vertexBuffer;
 }

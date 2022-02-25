@@ -207,12 +207,14 @@ class PaintingCodec extends StandardMessageCodec {
       buffer.putInt32(command.paint == null ? -1 : _paintIds[command.paint]!);
       buffer.putInt32(command.vertices.length);
       buffer.putFloat32List(command.vertices);
-      if (command.colors == null) {
-        buffer.putInt32(0);
-      } else {
-        buffer.putInt32(command.colors!.length);
-        buffer.putInt32List(command.colors!);
-      }
+      // if (command.colors == null) {
+      //   buffer.putInt32(0);
+      // } else {
+      buffer.putInt32(command.colors!.first);
+      //   buffer.putInt32List(command.colors!);
+      // }
+      buffer.putInt32(command.indices!.length);
+      buffer.putUint16List(command.indices!);
     }
   }
 
@@ -227,10 +229,16 @@ class PaintingCodec extends StandardMessageCodec {
     final int paintId = buffer.getInt32();
     final int verticesLength = buffer.getInt32();
     final Float32List vertices = buffer.getFloat32List(verticesLength);
-    final int colorsLength = buffer.getInt32();
-    Int32List? colors;
-    if (colorsLength != 0) {
-      colors = buffer.getInt32List(colorsLength);
+    final int color = buffer.getInt32();
+    final Int32List colors = Int32List(1);
+    colors[0] = color;
+    // Int32List? colors;
+    // if (colorsLength != 0) {
+    //   colors = buffer.getInt32List(colorsLength);
+    // }
+    final indicesLength = buffer.getInt32();
+    if (indicesLength > 0) {
+      buffer.getUint16List(indicesLength);
     }
     _listener?.onDrawVertices(vertices, colors, paintId);
     return null;
@@ -590,6 +598,14 @@ class WriteBuffer {
     _buffer.addAll(list);
   }
 
+  /// Write all the values from an [Uint16List] into the buffer.
+  void putUint16List(Uint16List list) {
+    assert(!_isDone);
+    _alignTo(4);
+    _buffer
+        .addAll(list.buffer.asUint8List(list.offsetInBytes, 2 * list.length));
+  }
+
   /// Write all the values from an [Int32List] into the buffer.
   void putInt32List(Int32List list) {
     assert(!_isDone);
@@ -705,6 +721,14 @@ class ReadBuffer {
     final Uint8List list =
         data.buffer.asUint8List(data.offsetInBytes + _position, length);
     _position += length;
+    return list;
+  }
+
+  Uint16List getUint16List(int length) {
+    _alignTo(4);
+    final Uint16List list =
+        data.buffer.asUint16List(data.offsetInBytes + _position, length);
+    _position += 2 * length;
     return list;
   }
 
